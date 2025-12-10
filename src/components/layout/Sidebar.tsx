@@ -112,7 +112,7 @@ export function Sidebar({ className }: SidebarProps) {
 
   return (
     <div className={cn(
-      "pb-12 border-r bg-slate-50/50 dark:bg-slate-900/50 transition-all duration-300",
+      "pb-12 border-r bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 transition-all duration-300 shadow-xl",
       collapsed ? "w-16" : "w-64",
       className
     )}>
@@ -121,15 +121,20 @@ export function Sidebar({ className }: SidebarProps) {
         <div className="px-3 py-2">
           <div className="flex items-center justify-between">
             {!collapsed && (
-              <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">
-                SAMERP
-              </h2>
+              <div className="flex items-center space-x-2 px-4">
+                <div className="p-1.5 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-500">
+                  <Shield className="h-5 w-5 text-white" />
+                </div>
+                <h2 className="text-lg font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+                  SAM ERP
+                </h2>
+              </div>
             )}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setCollapsed(!collapsed)}
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-700/50"
             >
               {collapsed ? (
                 <ChevronRight className="h-4 w-4" />
@@ -143,12 +148,12 @@ export function Sidebar({ className }: SidebarProps) {
         {/* User Info */}
         {!collapsed && user && (
           <div className="px-3 py-2">
-            <div className="rounded-lg bg-slate-100 dark:bg-slate-800 p-3">
-              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+            <div className="rounded-lg bg-gradient-to-r from-slate-700/50 to-slate-600/50 backdrop-blur-sm border border-slate-600/30 p-3">
+              <p className="text-sm font-medium text-white">
                 {user.nombre}
               </p>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                {user.tbl_roles?.nombre || 'Sin rol'}
+              <p className="text-xs text-cyan-300">
+                {user.rol_nombre || 'Sin rol'}
               </p>
             </div>
           </div>
@@ -165,16 +170,22 @@ export function Sidebar({ className }: SidebarProps) {
                 return (
                   <Link key={item.href} to={item.href}>
                     <Button
-                      variant={isActive ? "secondary" : "ghost"}
+                      variant="ghost"
                       className={cn(
-                        "w-full justify-start h-10",
+                        "w-full justify-start h-11 transition-all duration-200",
                         collapsed ? "px-2" : "px-4",
-                        isActive && "bg-slate-200 dark:bg-slate-700"
+                        isActive 
+                          ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-white border-r-2 border-cyan-400 shadow-lg" 
+                          : "text-slate-300 hover:text-white hover:bg-slate-700/50"
                       )}
                     >
-                      <Icon className={cn("h-4 w-4", !collapsed && "mr-2")} />
+                      <Icon className={cn(
+                        "h-5 w-5 transition-colors duration-200", 
+                        !collapsed && "mr-3",
+                        isActive ? "text-cyan-400" : "text-slate-400"
+                      )} />
                       {!collapsed && (
-                        <span className="text-sm">{item.title}</span>
+                        <span className="text-sm font-medium">{item.title}</span>
                       )}
                     </Button>
                   </Link>
