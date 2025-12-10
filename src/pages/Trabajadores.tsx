@@ -7,6 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Search, UserPlus, Eye, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { FileUpload } from '@/components/FileUpload';
+import { ExportButton } from '@/components/ExportButton';
+import { exportConfigs } from '@/lib/excelExport';
+import { handleFileUploadResult, FileUploadResult } from '@/lib/fileUpload';
 import {
   Table,
   TableBody,
@@ -40,7 +44,8 @@ export default function Trabajadores() {
     email_personal: '',
     celular: '',
     rol: '',
-    estado: 'Activo'
+    estado: 'Activo',
+    archivo_adjunto: ''
   });
 
   useEffect(() => {
@@ -80,7 +85,8 @@ export default function Trabajadores() {
           email_personal: formData.email_personal,
           celular: formData.celular,
           rol: formData.rol,
-          estado: formData.estado
+          estado: formData.estado,
+          archivo_adjunto: formData.archivo_adjunto
         }]);
 
       if (error) {
@@ -96,7 +102,8 @@ export default function Trabajadores() {
           email_personal: '',
           celular: '',
           rol: '',
-          estado: 'Activo'
+          estado: 'Activo',
+          archivo_adjunto: ''
         });
         loadTrabajadores();
       }
@@ -125,6 +132,10 @@ export default function Trabajadores() {
       toast.error('Error al eliminar trabajador');
       console.error(error);
     }
+  };
+
+  const handleFileUploaded = (result: FileUploadResult) => {
+    handleFileUploadResult(result, setFormData);
   };
 
   const filteredTrabajadores = trabajadores.filter((t) => {
@@ -160,88 +171,106 @@ export default function Trabajadores() {
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Trabajadores</h1>
           <p className="text-slate-600 dark:text-slate-400 mt-1">Gestión de personal</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <UserPlus className="h-4 w-4 mr-2" />
-              Nuevo Trabajador
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Agregar Nuevo Trabajador</DialogTitle>
-              <DialogDescription>
-                Completa los datos del nuevo trabajador
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="rut" className="text-right">RUT</Label>
-                <Input
-                  id="rut"
-                  value={formData.rut}
-                  onChange={(e) => setFormData({...formData, rut: e.target.value})}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="nombres" className="text-right">Nombres</Label>
-                <Input
-                  id="nombres"
-                  value={formData.nombres}
-                  onChange={(e) => setFormData({...formData, nombres: e.target.value})}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="apellidos" className="text-right">Apellidos</Label>
-                <Input
-                  id="apellidos"
-                  value={formData.apellidos}
-                  onChange={(e) => setFormData({...formData, apellidos: e.target.value})}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="email" className="text-right">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email_personal}
-                  onChange={(e) => setFormData({...formData, email_personal: e.target.value})}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="celular" className="text-right">Celular</Label>
-                <Input
-                  id="celular"
-                  value={formData.celular}
-                  onChange={(e) => setFormData({...formData, celular: e.target.value})}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="rol" className="text-right">Rol</Label>
-                <Input
-                  id="rol"
-                  value={formData.rol}
-                  onChange={(e) => setFormData({...formData, rol: e.target.value})}
-                  className="col-span-3"
-                />
-              </div>
-              <DialogFooter>
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                  Guardar Trabajador
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <ExportButton
+            data={filteredTrabajadores}
+            columns={exportConfigs.trabajadores.columns}
+            fileName={exportConfigs.trabajadores.fileName}
+          />
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700">
+                <UserPlus className="h-4 w-4 mr-2" />
+                Nuevo Trabajador
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader>
+                <DialogTitle>Agregar Nuevo Trabajador</DialogTitle>
+                <DialogDescription>
+                  Completa los datos del nuevo trabajador
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="rut" className="text-right">RUT</Label>
+                  <Input
+                    id="rut"
+                    value={formData.rut}
+                    onChange={(e) => setFormData({...formData, rut: e.target.value})}
+                    className="col-span-3"
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="nombres" className="text-right">Nombres</Label>
+                  <Input
+                    id="nombres"
+                    value={formData.nombres}
+                    onChange={(e) => setFormData({...formData, nombres: e.target.value})}
+                    className="col-span-3"
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="apellidos" className="text-right">Apellidos</Label>
+                  <Input
+                    id="apellidos"
+                    value={formData.apellidos}
+                    onChange={(e) => setFormData({...formData, apellidos: e.target.value})}
+                    className="col-span-3"
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="email" className="text-right">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email_personal}
+                    onChange={(e) => setFormData({...formData, email_personal: e.target.value})}
+                    className="col-span-3"
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="celular" className="text-right">Celular</Label>
+                  <Input
+                    id="celular"
+                    value={formData.celular}
+                    onChange={(e) => setFormData({...formData, celular: e.target.value})}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="rol" className="text-right">Rol</Label>
+                  <Input
+                    id="rol"
+                    value={formData.rol}
+                    onChange={(e) => setFormData({...formData, rol: e.target.value})}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right mt-2">Archivo</Label>
+                  <div className="col-span-3">
+                    <FileUpload
+                      onFileUploaded={handleFileUploaded}
+                      currentFile={formData.archivo_adjunto}
+                      folder="trabajadores"
+                      label=""
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                    Guardar Trabajador
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card>
@@ -271,13 +300,14 @@ export default function Trabajadores() {
                   <TableHead>Email</TableHead>
                   <TableHead>Teléfono</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Archivo</TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredTrabajadores.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       {trabajadores.length === 0 
                         ? "No hay trabajadores registrados en la base de datos" 
                         : "No se encontraron trabajadores con ese criterio de búsqueda"
@@ -295,6 +325,13 @@ export default function Trabajadores() {
                       <TableCell>{trabajador.email_personal || '-'}</TableCell>
                       <TableCell>{trabajador.celular || '-'}</TableCell>
                       <TableCell>{getEstadoBadge(trabajador.estado)}</TableCell>
+                      <TableCell>
+                        {trabajador.archivo_adjunto ? (
+                          <Badge variant="outline">📎 Adjunto</Badge>
+                        ) : (
+                          <span className="text-gray-400">Sin archivo</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
                           <Button variant="ghost" size="sm">

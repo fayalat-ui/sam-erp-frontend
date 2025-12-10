@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Database } from '@/types/database';
+import { getPublicData } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Building, Eye } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Search, Plus, Eye, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Table,
@@ -15,7 +15,16 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-type Mandante = Database['public']['Tables']['tbl_mandantes']['Row'];
+type Mandante = {
+  id: string;
+  rut: string;
+  razon_social: string;
+  nombre_contacto: string;
+  email: string;
+  telefono: string;
+  direccion: string;
+  estado: string;
+};
 
 export default function Mandantes() {
   const [mandantes, setMandantes] = useState<Mandante[]>([]);
@@ -27,105 +36,90 @@ export default function Mandantes() {
 
   const loadMandantes = async () => {
     try {
-      const { data, error } = await supabase
-        .from('tbl_mandantes')
-        .select('*')
-        .order('Id_mandante', { ascending: false });
-
-      if (error) throw error;
-      setMandantes(data || []);
+      // Simulando datos mientras se implementa la tabla real
+      setMandantes([]);
+      toast.info('Módulo de mandantes en desarrollo');
     } catch (error) {
       console.error('Error loading mandantes:', error);
-      toast.error('Error al cargar mandantes');
-    } finally {
+      toast.error('Error de conexión');
     }
   };
 
   const filteredMandantes = mandantes.filter((m) => {
     const search = searchTerm.toLowerCase();
     return (
-      m.nombre_mandante?.toLowerCase().includes(search) ||
-      m.rut_mandante?.toLowerCase().includes(search) ||
-      m.razon_Social_mandante?.toLowerCase().includes(search)
+      m.razon_social?.toLowerCase().includes(search) ||
+      m.rut?.toLowerCase().includes(search) ||
+      m.email?.toLowerCase().includes(search) ||
+      m.nombre_contacto?.toLowerCase().includes(search)
     );
   });
 
+  const getEstadoBadge = (estado: string) => {
+    const variants: Record<string, 'default' | 'secondary' | 'destructive'> = {
+      'Activo': 'default',
+      'Inactivo': 'secondary',
+      'Suspendido': 'destructive',
+    };
+
+    return (
+      <Badge variant={variants[estado] || 'secondary'}>
+        {estado}
+      </Badge>
+    );
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-100">Mandantes</h1>
-          <p className="text-slate-400 mt-1">Gestión de mandantes</p>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Mandantes</h1>
+          <p className="text-slate-600 dark:text-slate-400 mt-1">Gestión de empresas mandantes</p>
         </div>
         <Button className="bg-blue-600 hover:bg-blue-700">
-          <Building className="h-4 w-4 mr-2" />
+          <Plus className="h-4 w-4 mr-2" />
           Nuevo Mandante
         </Button>
       </div>
 
-      <Card className="bg-slate-900 border-slate-800">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-slate-100">Lista de Mandantes</CardTitle>
+          <CardTitle>Lista de Mandantes ({mandantes.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Buscar por nombre, RUT o razón social..."
+                placeholder="Buscar por razón social, RUT, contacto o email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-slate-950 border-slate-700 text-slate-100"
+                className="pl-10"
               />
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-800 overflow-hidden">
+          <div className="rounded-lg border overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-800 hover:bg-slate-800">
-                  <TableHead className="text-slate-300">RUT</TableHead>
-                  <TableHead className="text-slate-300">Nombre</TableHead>
-                  <TableHead className="text-slate-300">Razón Social</TableHead>
-                  <TableHead className="text-slate-300">Giro</TableHead>
-                  <TableHead className="text-slate-300">Teléfono</TableHead>
-                  <TableHead className="text-slate-300">Representante Legal</TableHead>
-                  <TableHead className="text-slate-300">Acciones</TableHead>
+                <TableRow>
+                  <TableHead>RUT</TableHead>
+                  <TableHead>Razón Social</TableHead>
+                  <TableHead>Contacto</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Teléfono</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredMandantes.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-slate-400 py-8">
-                      No se encontraron mandantes
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredMandantes.map((mandante) => (
-                    <TableRow key={mandante.Id_mandante} className="hover:bg-slate-800/50">
-                      <TableCell className="text-slate-300">{mandante.rut_mandante || '-'}</TableCell>
-                      <TableCell className="text-slate-100 font-medium">
-                        {mandante.nombre_mandante || '-'}
-                      </TableCell>
-                      <TableCell className="text-slate-300">{mandante.razon_Social_mandante || '-'}</TableCell>
-                      <TableCell className="text-slate-300">{mandante.Giro_mandante || '-'}</TableCell>
-                      <TableCell className="text-slate-300">{mandante.telefono_mandante || '-'}</TableCell>
-                      <TableCell className="text-slate-300">{mandante.representante_legal || '-'}</TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    Módulo de mandantes en desarrollo. Próximamente disponible.
+                  </TableCell>
+                </TableRow>
               </TableBody>
             </Table>
-          </div>
-
-          <div className="mt-4 text-sm text-slate-400">
-            Mostrando {filteredMandantes.length} de {mandantes.length} mandantes
           </div>
         </CardContent>
       </Card>

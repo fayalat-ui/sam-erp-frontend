@@ -1,7 +1,13 @@
+import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { Sidebar } from '@/components/layout/Sidebar';
 
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+interface ProtectedRouteProps {
+  children: ReactNode;
+}
+
+export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -16,5 +22,12 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  return <>{children}</>;
+  return (
+    <div className="flex min-h-screen bg-slate-950">
+      <Sidebar />
+      <main className="flex-1 p-8 overflow-auto">
+        {children}
+      </main>
+    </div>
+  );
 }

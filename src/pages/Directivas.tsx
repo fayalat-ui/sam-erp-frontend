@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { getPublicData, supabase } from '@/lib/supabase';
-import { Database } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -30,39 +29,52 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
-type Servicio = Database['public']['Tables']['tbl_servicios']['Row'];
+type Directiva = {
+  id_directiva: string;
+  titulo: string;
+  descripcion: string;
+  fecha_vigencia: string;
+  estado: string;
+  archivo_adjunto?: string;
+  created_at: string;
+};
 
-export default function Servicios() {
-  const [servicios, setServicios] = useState<Servicio[]>([]);
+export default function Directivas() {
+  const [directivas, setDirectivas] = useState<Directiva[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
-    nombre: '',
+    titulo: '',
     descripcion: '',
-    precio_base: '',
+    fecha_vigencia: '',
+    estado: 'Activa',
     archivo_adjunto: ''
   });
 
   useEffect(() => {
-    loadServicios();
+    loadDirectivas();
   }, []);
 
-  const loadServicios = async () => {
+  const loadDirectivas = async () => {
     try {
-      const { data, error } = await getPublicData('tbl_servicios');
+      const { data, error } = await getPublicData('app_61b67b0a14_directivas');
       
       if (error) {
-        console.error('Error loading servicios:', error);
-        toast.error('Error al cargar servicios: ' + error);
+        console.error('Error loading directivas:', error);
+        toast.error('Error al cargar directivas: ' + error);
       } else {
-        setServicios(data || []);
-        if (data && data.length === 0) {
-          toast.info('No hay servicios registrados');
-        }
+        setDirectivas(data || []);
       }
     } catch (error) {
-      console.error('Error loading servicios:', error);
+      console.error('Error loading directivas:', error);
       toast.error('Error de conexión');
     }
   };
@@ -72,50 +84,52 @@ export default function Servicios() {
     
     try {
       const { error } = await supabase
-        .from('tbl_servicios')
+        .from('app_61b67b0a14_directivas')
         .insert([{
-          nombre: formData.nombre,
+          titulo: formData.titulo,
           descripcion: formData.descripcion,
-          precio_base: formData.precio_base ? parseFloat(formData.precio_base) : null,
+          fecha_vigencia: formData.fecha_vigencia,
+          estado: formData.estado,
           archivo_adjunto: formData.archivo_adjunto
         }]);
 
       if (error) {
-        toast.error('Error al crear servicio: ' + error.message);
+        toast.error('Error al crear directiva: ' + error.message);
       } else {
-        toast.success('Servicio creado exitosamente');
+        toast.success('Directiva creada exitosamente');
         setIsDialogOpen(false);
         setFormData({
-          nombre: '',
+          titulo: '',
           descripcion: '',
-          precio_base: '',
+          fecha_vigencia: '',
+          estado: 'Activa',
           archivo_adjunto: ''
         });
-        loadServicios();
+        loadDirectivas();
       }
     } catch (error) {
-      toast.error('Error al crear servicio');
+      toast.error('Error al crear directiva');
       console.error(error);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este servicio?')) return;
+    if (!confirm('¿Estás seguro de eliminar esta directiva?')) return;
     
     try {
       const { error } = await supabase
-        .from('tbl_servicios')
+        .from('app_61b67b0a14_directivas')
         .delete()
-        .eq('id_servicio', id);
+        .eq('id_directiva', id);
 
       if (error) {
-        toast.error('Error al eliminar servicio: ' + error.message);
+        toast.error('Error al eliminar directiva: ' + error.message);
       } else {
-        toast.success('Servicio eliminado exitosamente');
-        loadServicios();
+        toast.success('Directiva eliminada exitosamente');
+        loadDirectivas();
       }
     } catch (error) {
-      toast.error('Error al eliminar servicio');
+      toast.error('Error al eliminar directiva');
       console.error(error);
     }
   };
@@ -124,56 +138,63 @@ export default function Servicios() {
     handleFileUploadResult(result, setFormData);
   };
 
-  const filteredServicios = servicios.filter((s) => {
+  const filteredDirectivas = directivas.filter((d) => {
     const search = searchTerm.toLowerCase();
     return (
-      s.nombre?.toLowerCase().includes(search) ||
-      s.descripcion?.toLowerCase().includes(search)
+      d.titulo?.toLowerCase().includes(search) ||
+      d.descripcion?.toLowerCase().includes(search) ||
+      d.estado?.toLowerCase().includes(search)
     );
   });
 
-  const formatPrice = (price: number | null) => {
-    if (!price) return '-';
-    return new Intl.NumberFormat('es-CL', {
-      style: 'currency',
-      currency: 'CLP'
-    }).format(price);
+  const getEstadoBadge = (estado: string) => {
+    const variants: Record<string, 'default' | 'secondary' | 'destructive'> = {
+      'Activa': 'default',
+      'Inactiva': 'secondary',
+      'Vencida': 'destructive',
+    };
+
+    return (
+      <Badge variant={variants[estado] || 'secondary'}>
+        {estado}
+      </Badge>
+    );
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Servicios</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">Gestión de servicios</p>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Directivas</h1>
+          <p className="text-slate-600 dark:text-slate-400 mt-1">Gestión de directivas empresariales</p>
         </div>
         <div className="flex gap-2">
           <ExportButton
-            data={filteredServicios}
-            columns={exportConfigs.servicios.columns}
-            fileName={exportConfigs.servicios.fileName}
+            data={filteredDirectivas}
+            columns={exportConfigs.directivas.columns}
+            fileName={exportConfigs.directivas.fileName}
           />
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700">
                 <Plus className="h-4 w-4 mr-2" />
-                Nuevo Servicio
+                Nueva Directiva
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
-                <DialogTitle>Agregar Nuevo Servicio</DialogTitle>
+                <DialogTitle>Agregar Nueva Directiva</DialogTitle>
                 <DialogDescription>
-                  Completa los datos del nuevo servicio
+                  Completa los datos de la nueva directiva
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="nombre" className="text-right">Nombre</Label>
+                  <Label htmlFor="titulo" className="text-right">Título</Label>
                   <Input
-                    id="nombre"
-                    value={formData.nombre}
-                    onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+                    id="titulo"
+                    value={formData.titulo}
+                    onChange={(e) => setFormData({...formData, titulo: e.target.value})}
                     className="col-span-3"
                     required
                   />
@@ -186,19 +207,35 @@ export default function Servicios() {
                     onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
                     className="col-span-3"
                     rows={3}
+                    required
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="precio_base" className="text-right">Precio Base</Label>
+                  <Label htmlFor="fecha_vigencia" className="text-right">Fecha Vigencia</Label>
                   <Input
-                    id="precio_base"
-                    type="number"
-                    step="0.01"
-                    value={formData.precio_base}
-                    onChange={(e) => setFormData({...formData, precio_base: e.target.value})}
+                    id="fecha_vigencia"
+                    type="date"
+                    value={formData.fecha_vigencia}
+                    onChange={(e) => setFormData({...formData, fecha_vigencia: e.target.value})}
                     className="col-span-3"
-                    placeholder="0.00"
+                    required
                   />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="estado" className="text-right">Estado</Label>
+                  <Select
+                    value={formData.estado}
+                    onValueChange={(value) => setFormData({...formData, estado: value})}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Activa">Activa</SelectItem>
+                      <SelectItem value="Inactiva">Inactiva</SelectItem>
+                      <SelectItem value="Vencida">Vencida</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-4 items-start gap-4">
                   <Label className="text-right mt-2">Archivo</Label>
@@ -206,14 +243,14 @@ export default function Servicios() {
                     <FileUpload
                       onFileUploaded={handleFileUploaded}
                       currentFile={formData.archivo_adjunto}
-                      folder="servicios"
+                      folder="directivas"
                       label=""
                     />
                   </div>
                 </div>
                 <DialogFooter>
                   <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                    Guardar Servicio
+                    Guardar Directiva
                   </Button>
                 </DialogFooter>
               </form>
@@ -224,14 +261,14 @@ export default function Servicios() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Servicios ({servicios.length})</CardTitle>
+          <CardTitle>Lista de Directivas ({directivas.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Buscar por nombre o descripción..."
+                placeholder="Buscar por título, descripción o estado..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -243,39 +280,37 @@ export default function Servicios() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nombre</TableHead>
+                  <TableHead>Título</TableHead>
                   <TableHead>Descripción</TableHead>
-                  <TableHead>Precio Base</TableHead>
+                  <TableHead>Fecha Vigencia</TableHead>
+                  <TableHead>Estado</TableHead>
                   <TableHead>Archivo</TableHead>
-                  <TableHead>Fecha Creación</TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredServicios.length === 0 ? (
+                {filteredDirectivas.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8">
-                      {servicios.length === 0 
-                        ? "No hay servicios registrados en la base de datos" 
-                        : "No se encontraron servicios con ese criterio de búsqueda"
+                      {directivas.length === 0 
+                        ? "No hay directivas registradas" 
+                        : "No se encontraron directivas con ese criterio de búsqueda"
                       }
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredServicios.map((servicio) => (
-                    <TableRow key={servicio.id_servicio}>
-                      <TableCell className="font-medium">{servicio.nombre || '-'}</TableCell>
-                      <TableCell className="max-w-xs truncate">{servicio.descripcion || '-'}</TableCell>
-                      <TableCell>{formatPrice(servicio.precio_base)}</TableCell>
+                  filteredDirectivas.map((directiva) => (
+                    <TableRow key={directiva.id_directiva}>
+                      <TableCell className="font-medium">{directiva.titulo}</TableCell>
+                      <TableCell className="max-w-xs truncate">{directiva.descripcion}</TableCell>
+                      <TableCell>{new Date(directiva.fecha_vigencia).toLocaleDateString()}</TableCell>
+                      <TableCell>{getEstadoBadge(directiva.estado)}</TableCell>
                       <TableCell>
-                        {servicio.archivo_adjunto ? (
+                        {directiva.archivo_adjunto ? (
                           <Badge variant="outline">📎 Adjunto</Badge>
                         ) : (
                           <span className="text-gray-400">Sin archivo</span>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        {servicio.created_at ? new Date(servicio.created_at).toLocaleDateString() : '-'}
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
@@ -288,7 +323,7 @@ export default function Servicios() {
                           <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => handleDelete(servicio.id_servicio)}
+                            onClick={() => handleDelete(directiva.id_directiva)}
                             className="text-red-600 hover:text-red-700"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -303,7 +338,7 @@ export default function Servicios() {
           </div>
 
           <div className="mt-4 text-sm text-muted-foreground">
-            Mostrando {filteredServicios.length} de {servicios.length} servicios
+            Mostrando {filteredDirectivas.length} de {directivas.length} directivas
           </div>
         </CardContent>
       </Card>
