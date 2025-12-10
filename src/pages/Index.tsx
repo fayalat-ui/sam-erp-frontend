@@ -1,12 +1,31 @@
-// This is a template for the welcome page, you must rewrite this file to your own homepage
-export default function WelcomePage() {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50 p-6 text-center">
-      <div className="space-y-8 max-w-md animate-in fade-in slide-in-from-bottom-8 duration-700">
-        <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Welcome to MGX</h1>
+import { useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { Loader2, Shield } from 'lucide-react';
 
-        <p className="text-lg text-muted-foreground animate-in fade-in delay-300 duration-700">Let's build something amazing</p>
+export default function Index() {
+  const { user, isLoading } = useAuth();
+
+  // Mostrar loading mientras se verifica la autenticación
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="text-center space-y-4">
+          <Shield className="h-16 w-16 text-blue-500 mx-auto animate-pulse" />
+          <h1 className="text-2xl font-bold text-slate-100">ERP Seguridad</h1>
+          <div className="flex items-center justify-center space-x-2">
+            <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+            <span className="text-slate-400">Cargando sistema...</span>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // Redirigir según el estado de autenticación
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  } else {
+    return <Navigate to="/login" replace />;
+  }
 }
