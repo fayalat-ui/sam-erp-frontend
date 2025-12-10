@@ -214,7 +214,7 @@ export default function Usuarios() {
     }
   };
 
-  const handlePermissionChange = (moduloId: string, field: 'activo' | 'nivel_acceso', value: any) => {
+  const handlePermissionChange = (moduloId: string, field: 'activo' | 'nivel_acceso', value: boolean | string) => {
     setUserPermissions(prev => prev.map(p => 
       p.modulo_id === moduloId 
         ? { ...p, [field]: value }
@@ -472,7 +472,7 @@ export default function Usuarios() {
                         <Checkbox
                           checked={permission?.activo || false}
                           onCheckedChange={(checked) => 
-                            handlePermissionChange(modulo.id, 'activo', checked)
+                            handlePermissionChange(modulo.id, 'activo', !!checked)
                           }
                         />
                         <div>
