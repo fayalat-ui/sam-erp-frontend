@@ -19,8 +19,6 @@ import Usuarios from './pages/Usuarios';
 import Roles from './pages/Roles';
 import Directivas from './pages/Directivas';
 import Jornadas from './pages/Jornadas';
-import { SharePointTest } from '@/components/SharePointTest';
-import SharePointTestPage from './pages/SharePointTestPage';
 
 const queryClient = new QueryClient();
 
@@ -33,8 +31,6 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/test-sharepoint" element={<SharePointTestPage />} />
-            <Route path="/test-sharepoint-legacy" element={<SharePointTest />} />
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Dashboard />

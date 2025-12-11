@@ -1,200 +1,233 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useSharePointAuth } from '@/contexts/SharePointAuthContext';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { 
-  LayoutDashboard, 
+  LayoutDashboard,
   Users, 
   Building2, 
-  UserCheck, 
   Briefcase, 
-  GraduationCap, 
-  Calendar, 
-  Settings, 
-  Shield,
   FileText,
-  Clock,
-  ChevronLeft,
+  Calendar,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  ChevronDown,
   ChevronRight
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-const menuItems = [
+interface MenuItem {
+  title: string;
+  icon: any;
+  href?: string;
+  module?: string;
+  level?: string;
+  children?: MenuItem[];
+}
+
+const menuItems: MenuItem[] = [
   {
     title: 'Dashboard',
-    href: '/dashboard',
     icon: LayoutDashboard,
-    module: 'dashboard'
+    href: '/dashboard'
   },
   {
-    title: 'Trabajadores',
-    href: '/trabajadores',
+    title: 'RR.HH',
     icon: Users,
-    module: 'rrhh'
+    module: 'rrhh',
+    level: 'lectura',
+    children: [
+      { title: 'Trabajadores', icon: Users, href: '/trabajadores', module: 'rrhh', level: 'lectura' },
+      { title: 'Vacaciones', icon: Calendar, href: '/vacaciones', module: 'rrhh', level: 'lectura' },
+      { title: 'Jornadas', icon: Calendar, href: '/jornadas', module: 'rrhh', level: 'lectura' }
+    ]
   },
   {
-    title: 'Clientes',
-    href: '/clientes',
+    title: 'Administradores',
     icon: Building2,
-    module: 'administradores'
+    module: 'administradores',
+    level: 'lectura',
+    children: [
+      { title: 'Clientes', icon: Building2, href: '/clientes', module: 'administradores', level: 'lectura' },
+      { title: 'Mandantes', icon: Building2, href: '/mandantes', module: 'administradores', level: 'lectura' }
+    ]
   },
   {
-    title: 'Mandantes',
-    href: '/mandantes',
-    icon: UserCheck,
-    module: 'administradores'
-  },
-  {
-    title: 'Servicios',
-    href: '/servicios',
+    title: 'OSP',
     icon: Briefcase,
-    module: 'osp'
+    module: 'osp',
+    level: 'lectura',
+    children: [
+      { title: 'Servicios', icon: Briefcase, href: '/servicios', module: 'osp', level: 'lectura' },
+      { title: 'Contratos', icon: FileText, href: '/contratos', module: 'osp', level: 'lectura' },
+      { title: 'Cursos', icon: FileText, href: '/cursos', module: 'osp', level: 'lectura' },
+      { title: 'Directivas', icon: FileText, href: '/directivas', module: 'osp', level: 'lectura' }
+    ]
   },
   {
-    title: 'Contratos',
-    href: '/contratos',
-    icon: FileText,
-    module: 'osp'
-  },
-  {
-    title: 'Cursos',
-    href: '/cursos',
-    icon: GraduationCap,
-    module: 'osp'
-  },
-  {
-    title: 'Vacaciones',
-    href: '/vacaciones',
-    icon: Calendar,
-    module: 'rrhh'
-  },
-  {
-    title: 'Directivas',
-    href: '/directivas',
-    icon: FileText,
-    module: 'osp'
-  },
-  {
-    title: 'Jornadas',
-    href: '/jornadas',
-    icon: Clock,
-    module: 'rrhh'
-  },
-  {
-    title: 'Usuarios',
-    href: '/usuarios',
+    title: 'Administración',
     icon: Settings,
-    module: 'usuarios'
-  },
-  {
-    title: 'Roles',
-    href: '/roles',
-    icon: Shield,
-    module: 'usuarios'
+    module: 'usuarios',
+    level: 'administracion',
+    children: [
+      { title: 'Usuarios', icon: Users, href: '/usuarios', module: 'usuarios', level: 'administracion' },
+      { title: 'Roles', icon: Settings, href: '/roles', module: 'usuarios', level: 'administracion' }
+    ]
   }
 ];
 
-interface SidebarProps {
-  className?: string;
-}
-
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<string[]>(['RR.HH', 'Administradores', 'OSP']);
   const location = useLocation();
-  const { user, canRead } = useSharePointAuth();
-  const [collapsed, setCollapsed] = useState(false);
+  const { user, logout, canRead, canAdmin } = useSharePointAuth();
 
-  // Filtrar elementos del menú basado en permisos de SharePoint
-  const visibleMenuItems = menuItems.filter(item => {
-    if (item.module === 'dashboard') return true; // Dashboard siempre visible
+  const toggleExpanded = (title: string) => {
+    setExpandedItems(prev => 
+      prev.includes(title) 
+        ? prev.filter(item => item !== title)
+        : [...prev, title]
+    );
+  };
+
+  const hasPermission = (item: MenuItem): boolean => {
+    if (!item.module) return true;
+    
+    if (item.level === 'administracion') {
+      return canAdmin(item.module);
+    }
+    
     return canRead(item.module);
-  });
+  };
+
+  const renderMenuItem = (item: MenuItem, depth = 0) => {
+    if (!hasPermission(item)) return null;
+
+    const isActive = item.href === location.pathname;
+    const isExpanded = expandedItems.includes(item.title);
+    const hasChildren = item.children && item.children.length > 0;
+    const Icon = item.icon;
+
+    if (hasChildren) {
+      return (
+        <div key={item.title}>
+          <Button
+            variant="ghost"
+            className={cn(
+              "w-full justify-start text-left font-normal",
+              depth > 0 && "pl-8"
+            )}
+            onClick={() => toggleExpanded(item.title)}
+          >
+            <Icon className="h-4 w-4 mr-2" />
+            <span className="flex-1">{item.title}</span>
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </Button>
+          {isExpanded && (
+            <div className="ml-4 space-y-1">
+              {item.children.map(child => renderMenuItem(child, depth + 1))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <Link key={item.title} to={item.href!}>
+        <Button
+          variant={isActive ? "secondary" : "ghost"}
+          className={cn(
+            "w-full justify-start text-left font-normal",
+            depth > 0 && "pl-8"
+          )}
+        >
+          <Icon className="h-4 w-4 mr-2" />
+          {item.title}
+        </Button>
+      </Link>
+    );
+  };
 
   return (
-    <div className={cn(
-      "pb-12 border-r bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 transition-all duration-300 shadow-xl",
-      collapsed ? "w-16" : "w-64",
-      className
-    )}>
-      <div className="space-y-4 py-4">
-        {/* Header */}
-        <div className="px-3 py-2">
-          <div className="flex items-center justify-between">
-            {!collapsed && (
-              <div className="flex items-center space-x-2 px-4">
-                <div className="p-1.5 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-500">
-                  <Shield className="h-5 w-5 text-white" />
+    <>
+      {/* Mobile menu button */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="fixed top-4 left-4 z-50 lg:hidden"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        {isOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+      </Button>
+
+      {/* Sidebar */}
+      <div className={cn(
+        "fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:inset-0",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">SAM ERP</h2>
+              <Badge variant="outline" className="text-xs">
+                SharePoint
+              </Badge>
+            </div>
+          </div>
+
+          {/* User info */}
+          {user && (
+            <div className="p-4 border-b bg-gray-50">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                  {user.displayName?.charAt(0) || user.mail?.charAt(0) || 'U'}
                 </div>
-                <h2 className="text-lg font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-                  SAM ERP
-                </h2>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {user.displayName || user.mail}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {user.jobTitle || 'Usuario'}
+                  </p>
+                </div>
               </div>
-            )}
+            </div>
+          )}
+
+          {/* Navigation */}
+          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+            {menuItems.map(item => renderMenuItem(item))}
+          </nav>
+
+          {/* Footer */}
+          <div className="p-4 border-t">
             <Button
               variant="ghost"
-              size="sm"
-              onClick={() => setCollapsed(!collapsed)}
-              className="h-8 w-8 p-0 text-slate-400 hover:text-white hover:bg-slate-700/50"
+              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={logout}
             >
-              {collapsed ? (
-                <ChevronRight className="h-4 w-4" />
-              ) : (
-                <ChevronLeft className="h-4 w-4" />
-              )}
+              <LogOut className="h-4 w-4 mr-2" />
+              Cerrar Sesión
             </Button>
           </div>
         </div>
-
-        {/* User Info */}
-        {!collapsed && user && (
-          <div className="px-3 py-2">
-            <div className="rounded-lg bg-gradient-to-r from-slate-700/50 to-slate-600/50 backdrop-blur-sm border border-slate-600/30 p-3">
-              <p className="text-sm font-medium text-white">
-                {user.nombre}
-              </p>
-              <p className="text-xs text-cyan-300">
-                {user.rol_nombre || 'Sin rol'}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Navigation */}
-        <div className="px-3 py-2">
-          <ScrollArea className="h-[calc(100vh-200px)]">
-            <div className="space-y-1">
-              {visibleMenuItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = location.pathname === item.href;
-                
-                return (
-                  <Link key={item.href} to={item.href}>
-                    <Button
-                      variant="ghost"
-                      className={cn(
-                        "w-full justify-start h-11 transition-all duration-200",
-                        collapsed ? "px-2" : "px-4",
-                        isActive 
-                          ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-white border-r-2 border-cyan-400 shadow-lg" 
-                          : "text-slate-300 hover:text-white hover:bg-slate-700/50"
-                      )}
-                    >
-                      <Icon className={cn(
-                        "h-5 w-5 transition-colors duration-200", 
-                        !collapsed && "mr-3",
-                        isActive ? "text-cyan-400" : "text-slate-400"
-                      )} />
-                      {!collapsed && (
-                        <span className="text-sm font-medium">{item.title}</span>
-                      )}
-                    </Button>
-                  </Link>
-                );
-              })}
-            </div>
-          </ScrollArea>
-        </div>
       </div>
-    </div>
+
+      {/* Overlay for mobile */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+    </>
   );
 }

@@ -1,270 +1,174 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { PublicClientApplication, AccountInfo } from '@azure/msal-browser';
-import { MsalProvider, useMsal } from '@azure/msal-react';
+import { PublicClientApplication, AccountInfo, AuthenticationResult } from '@azure/msal-browser';
 import { msalConfig, loginRequest } from '@/lib/msalConfig';
-import { sharePointClient } from '@/lib/sharepoint';
-import { usuariosService } from '@/lib/sharepoint-services';
-import { MODULES, PERMISSION_LEVELS } from '@/lib/sharepoint-mappings';
 
-interface User {
+interface SharePointUser {
   id: string;
-  email: string;
-  nombre: string;
-  rol_id: number;
-  rol_nombre: string;
-  activo: boolean;
-  permisos: { [module: string]: string }; // module -> permission level
+  displayName: string;
+  mail: string;
+  userPrincipalName: string;
+  jobTitle?: string;
+  department?: string;
+  permisos: Record<string, string[]>;
 }
 
 interface SharePointAuthContextType {
-  user: User | null;
-  login: () => Promise<boolean>;
-  logout: () => void;
+  user: SharePointUser | null;
+  isAuthenticated: boolean;
   isLoading: boolean;
-  hasPermission: (module: string, level: string) => boolean;
+  login: () => Promise<void>;
+  logout: () => Promise<void>;
+  getAccessToken: () => Promise<string>;
   canRead: (module: string) => boolean;
-  canCollaborate: (module: string) => boolean;
-  canAdministrate: (module: string) => boolean;
-  account: AccountInfo | null;
+  canWrite: (module: string) => boolean;
+  canAdmin: (module: string) => boolean;
 }
 
 const SharePointAuthContext = createContext<SharePointAuthContextType | undefined>(undefined);
 
-// Create MSAL instance
-const msalInstance = new PublicClientApplication(msalConfig);
-
-// Initialize MSAL
-msalInstance.initialize().then(() => {
-  console.log('MSAL initialized successfully');
-}).catch((error) => {
-  console.error('MSAL initialization failed:', error);
-});
-
 export function SharePointAuthProvider({ children }: { children: ReactNode }) {
-  return (
-    <MsalProvider instance={msalInstance}>
-      <SharePointAuthProviderInner>
-        {children}
-      </SharePointAuthProviderInner>
-    </MsalProvider>
-  );
-}
-
-function SharePointAuthProviderInner({ children }: { children: ReactNode }) {
-  const { instance, accounts } = useMsal();
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SharePointUser | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [msalInstance] = useState(() => new PublicClientApplication(msalConfig));
 
   useEffect(() => {
-    // Check if user is already logged in
-    if (accounts.length > 0) {
-      loadUserData(accounts[0]);
-    } else {
-      setIsLoading(false);
-    }
-  }, [accounts]);
+    initializeMsal();
+  }, []);
 
-  const loadUserData = async (account: AccountInfo) => {
+  const initializeMsal = async () => {
     try {
-      setIsLoading(true);
+      await msalInstance.initialize();
       
-      // Initialize SharePoint connection
-      await sharePointClient.initializeSite();
-      
-      // Try to find user in SharePoint Users list
-      let existingUser;
-      try {
-        existingUser = await usuariosService.getUsuarioByEmail(account.username);
-      } catch (error) {
-        console.warn('Could not load user from SharePoint, using default permissions:', error);
-        // Create a default user if SharePoint lists are not available
-        const defaultUser: User = {
-          id: account.localAccountId || account.homeAccountId,
-          email: account.username,
-          nombre: account.name || account.username,
-          rol_id: 2, // Default role
-          rol_nombre: 'Usuario',
-          activo: true,
-          permisos: {
-            [MODULES.ADMINISTRADORES]: PERMISSION_LEVELS.LECTURA,
-            [MODULES.RRHH]: PERMISSION_LEVELS.LECTURA,
-            [MODULES.OSP]: PERMISSION_LEVELS.LECTURA,
-            [MODULES.USUARIOS]: PERMISSION_LEVELS.LECTURA
-          }
-        };
-        setUser(defaultUser);
-        return;
-      }
-
-      if (existingUser) {
-        // Get user role and permissions from SharePoint
-        let roles, userRole, rolePermisos, permisos;
-        try {
-          roles = await usuariosService.getRoles();
-          userRole = roles.find(role => role.id === existingUser.rol_id);
-          
-          // Get permissions for the role
-          rolePermisos = await usuariosService.getRolPermisos(existingUser.rol_id.toString());
-          permisos = await usuariosService.getPermisos();
-        } catch (error) {
-          console.warn('Could not load roles/permissions from SharePoint, using defaults:', error);
-          // Use default permissions if SharePoint data is not available
-          const userSession: User = {
-            id: existingUser.id,
-            email: existingUser.email,
-            nombre: existingUser.nombre || account.name || account.username,
-            rol_id: existingUser.rol_id || 2,
-            rol_nombre: 'Usuario',
-            activo: existingUser.activo,
-            permisos: {
-              [MODULES.ADMINISTRADORES]: PERMISSION_LEVELS.LECTURA,
-              [MODULES.RRHH]: PERMISSION_LEVELS.LECTURA,
-              [MODULES.OSP]: PERMISSION_LEVELS.LECTURA,
-              [MODULES.USUARIOS]: PERMISSION_LEVELS.LECTURA
-            }
-          };
-          setUser(userSession);
-          return;
-        }
-        
-        // Build permissions object
-        const userPermisos: { [module: string]: string } = {};
-        
-        rolePermisos.forEach(rp => {
-          const permiso = permisos.find(p => p.id === rp.permiso_id);
-          if (permiso) {
-            userPermisos[permiso.modulo] = permiso.nivel;
-          }
-        });
-
-        const userSession: User = {
-          id: existingUser.id,
-          email: existingUser.email,
-          nombre: existingUser.nombre || account.name || account.username,
-          rol_id: existingUser.rol_id,
-          rol_nombre: userRole?.nombre || 'Usuario',
-          activo: existingUser.activo,
-          permisos: userPermisos
-        };
-
-        setUser(userSession);
-      } else {
-        // Create new user with basic permissions
-        const newUser = {
-          email: account.username,
-          nombre: account.name || account.username,
-          rol_id: 3, // Default role
-          activo: true
-        };
-
-        try {
-          await usuariosService.createUsuario(newUser);
-          // Reload user data
-          await loadUserData(account);
-        } catch (error) {
-          console.warn('Could not create user in SharePoint, using default:', error);
-          // Use default user if creation fails
-          const defaultUser: User = {
-            id: account.localAccountId || account.homeAccountId,
-            email: account.username,
-            nombre: account.name || account.username,
-            rol_id: 3,
-            rol_nombre: 'Usuario',
-            activo: true,
-            permisos: {
-              [MODULES.ADMINISTRADORES]: PERMISSION_LEVELS.LECTURA,
-              [MODULES.RRHH]: PERMISSION_LEVELS.LECTURA,
-              [MODULES.OSP]: PERMISSION_LEVELS.LECTURA,
-              [MODULES.USUARIOS]: PERMISSION_LEVELS.LECTURA
-            }
-          };
-          setUser(defaultUser);
-        }
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        setIsAuthenticated(true);
+        await loadUserProfile(accounts[0]);
       }
     } catch (error) {
-      console.error('Error loading user data from SharePoint:', error);
-      // Fallback to basic user with read permissions
-      const fallbackUser: User = {
-        id: account.localAccountId || account.homeAccountId,
-        email: account.username,
-        nombre: account.name || account.username,
-        rol_id: 3,
-        rol_nombre: 'Usuario',
-        activo: true,
-        permisos: {
-          [MODULES.ADMINISTRADORES]: PERMISSION_LEVELS.LECTURA,
-          [MODULES.RRHH]: PERMISSION_LEVELS.LECTURA,
-          [MODULES.OSP]: PERMISSION_LEVELS.LECTURA,
-          [MODULES.USUARIOS]: PERMISSION_LEVELS.LECTURA
-        }
-      };
-      setUser(fallbackUser);
+      console.error('Error initializing MSAL:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const login = async (): Promise<boolean> => {
+  const loadUserProfile = async (account: AccountInfo) => {
+    try {
+      const accessToken = await getAccessToken();
+      
+      // Get user profile from Microsoft Graph
+      const response = await fetch('https://graph.microsoft.com/v1.0/me', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const profile = await response.json();
+        
+        // Set default permissions - in a real app, these would come from SharePoint or a database
+        const defaultPermisos = {
+          rrhh: ['lectura'],
+          administradores: ['lectura'],
+          osp: ['lectura'],
+          usuarios: profile.jobTitle?.toLowerCase().includes('admin') ? ['lectura', 'escritura', 'administracion'] : ['lectura']
+        };
+
+        const userData: SharePointUser = {
+          id: profile.id,
+          displayName: profile.displayName,
+          mail: profile.mail,
+          userPrincipalName: profile.userPrincipalName,
+          jobTitle: profile.jobTitle,
+          department: profile.department,
+          permisos: defaultPermisos
+        };
+
+        setUser(userData);
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
+  };
+
+  const login = async () => {
     try {
       setIsLoading(true);
-      const response = await instance.loginPopup(loginRequest);
+      const response: AuthenticationResult = await msalInstance.loginPopup(loginRequest);
       
       if (response.account) {
-        await loadUserData(response.account);
-        return true;
+        setIsAuthenticated(true);
+        await loadUserProfile(response.account);
       }
-      
-      return false;
     } catch (error) {
-      console.error('Login error:', error);
-      return false;
+      console.error('Login failed:', error);
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = () => {
-    instance.logoutPopup();
-    setUser(null);
-  };
-
-  const hasPermission = (module: string, level: string): boolean => {
-    if (!user || !user.permisos) return false;
-    
-    // Super admin has full access
-    if (user.rol_id === 1) return true;
-    
-    const userPermissionLevel = user.permisos[module];
-    if (!userPermissionLevel) return false;
-    
-    // Check permission hierarchy
-    switch (level) {
-      case PERMISSION_LEVELS.LECTURA:
-        return [PERMISSION_LEVELS.LECTURA, PERMISSION_LEVELS.COLABORACION, PERMISSION_LEVELS.ADMINISTRACION].includes(userPermissionLevel);
-      case PERMISSION_LEVELS.COLABORACION:
-        return [PERMISSION_LEVELS.COLABORACION, PERMISSION_LEVELS.ADMINISTRACION].includes(userPermissionLevel);
-      case PERMISSION_LEVELS.ADMINISTRACION:
-        return userPermissionLevel === PERMISSION_LEVELS.ADMINISTRACION;
-      default:
-        return false;
+  const logout = async () => {
+    try {
+      await msalInstance.logoutPopup();
+      setUser(null);
+      setIsAuthenticated(false);
+    } catch (error) {
+      console.error('Logout failed:', error);
     }
   };
 
-  const canRead = (module: string): boolean => hasPermission(module, PERMISSION_LEVELS.LECTURA);
-  const canCollaborate = (module: string): boolean => hasPermission(module, PERMISSION_LEVELS.COLABORACION);
-  const canAdministrate = (module: string): boolean => hasPermission(module, PERMISSION_LEVELS.ADMINISTRACION);
+  const getAccessToken = async (): Promise<string> => {
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length === 0) {
+      throw new Error('No authenticated user found');
+    }
+
+    try {
+      const response = await msalInstance.acquireTokenSilent({
+        ...loginRequest,
+        account: accounts[0]
+      });
+      return response.accessToken;
+    } catch (error) {
+      console.error('Silent token acquisition failed, trying interactive:', error);
+      try {
+        const response = await msalInstance.acquireTokenPopup(loginRequest);
+        return response.accessToken;
+      } catch (interactiveError) {
+        console.error('Interactive token acquisition failed:', interactiveError);
+        throw new Error('Failed to acquire access token');
+      }
+    }
+  };
+
+  const canRead = (module: string): boolean => {
+    if (!user || !user.permisos[module]) return false;
+    return user.permisos[module].includes('lectura');
+  };
+
+  const canWrite = (module: string): boolean => {
+    if (!user || !user.permisos[module]) return false;
+    return user.permisos[module].includes('escritura');
+  };
+
+  const canAdmin = (module: string): boolean => {
+    if (!user || !user.permisos[module]) return false;
+    return user.permisos[module].includes('administracion');
+  };
 
   return (
-    <SharePointAuthContext.Provider value={{ 
-      user, 
-      login, 
-      logout, 
-      isLoading, 
-      hasPermission,
+    <SharePointAuthContext.Provider value={{
+      user,
+      isAuthenticated,
+      isLoading,
+      login,
+      logout,
+      getAccessToken,
       canRead,
-      canCollaborate,
-      canAdministrate,
-      account: accounts.length > 0 ? accounts[0] : null
+      canWrite,
+      canAdmin
     }}>
       {children}
     </SharePointAuthContext.Provider>

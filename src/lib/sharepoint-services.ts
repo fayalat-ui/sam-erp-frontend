@@ -1,216 +1,105 @@
 import { sharePointClient } from './sharepoint';
-import { SHAREPOINT_LISTS, PERMISSION_LEVELS } from './sharepoint-mappings';
+import { transformSharePointData, FIELD_MAPPINGS } from './sharepoint-mappings';
 
-// Generic SharePoint service for CRUD operations
-export class SharePointService {
-  
-  // Generic methods for any list
-  async getItems(listName: string, select?: string, filter?: string, orderBy?: string) {
+interface SharePointQueryOptions {
+  select?: string;
+  filter?: string;
+  orderBy?: string;
+  top?: number;
+}
+
+class SharePointService {
+  constructor(private listName: string) {}
+
+  async getAll(options: SharePointQueryOptions = {}) {
     try {
-      let query = `fields`;
-      if (select) {
-        query = select.split(',').map(field => `fields/${field.trim()}`).join(',');
+      const items = await sharePointClient.getListItems(
+        this.listName,
+        options.select,
+        options.filter
+      );
+      
+      // Transform data if mapping exists
+      const listKey = Object.keys(FIELD_MAPPINGS).find(
+        key => FIELD_MAPPINGS[key as keyof typeof FIELD_MAPPINGS]
+      );
+      
+      if (listKey && listKey in FIELD_MAPPINGS) {
+        return transformSharePointData(listKey as keyof typeof FIELD_MAPPINGS, items);
       }
       
-      const items = await sharePointClient.getListItems(listName, query, filter);
       return items.map(item => ({
-        id: item.fields.id || item.id,
+        id: item.id,
         ...item.fields
       }));
     } catch (error) {
-      console.error(`Error getting items from ${listName}:`, error);
+      console.error(`Error fetching data from ${this.listName}:`, error);
       throw error;
     }
   }
 
-  async createItem(listName: string, data: Record<string, unknown>) {
+  async getById(id: string) {
     try {
-      const result = await sharePointClient.createListItem(listName, data);
-      return result;
+      const items = await sharePointClient.getListItems(
+        this.listName,
+        undefined,
+        `Id eq ${id}`
+      );
+      return items[0] || null;
     } catch (error) {
-      console.error(`Error creating item in ${listName}:`, error);
+      console.error(`Error fetching item ${id} from ${this.listName}:`, error);
       throw error;
     }
   }
 
-  async updateItem(listName: string, itemId: string, data: Record<string, unknown>) {
+  async create(data: Record<string, any>) {
     try {
-      const result = await sharePointClient.updateListItem(listName, itemId, data);
-      return result;
+      return await sharePointClient.createListItem(this.listName, data);
     } catch (error) {
-      console.error(`Error updating item in ${listName}:`, error);
+      console.error(`Error creating item in ${this.listName}:`, error);
       throw error;
     }
   }
 
-  async deleteItem(listName: string, itemId: string) {
+  async update(id: string, data: Record<string, any>) {
     try {
-      await sharePointClient.deleteListItem(listName, itemId);
+      return await sharePointClient.updateListItem(this.listName, id, data);
     } catch (error) {
-      console.error(`Error deleting item from ${listName}:`, error);
+      console.error(`Error updating item ${id} in ${this.listName}:`, error);
+      throw error;
+    }
+  }
+
+  async delete(id: string) {
+    try {
+      return await sharePointClient.deleteListItem(this.listName, id);
+    } catch (error) {
+      console.error(`Error deleting item ${id} from ${this.listName}:`, error);
       throw error;
     }
   }
 }
 
-// Specific services for each module
-export class MandantesService extends SharePointService {
-  async getMandantes() {
-    return this.getItems(SHAREPOINT_LISTS.MANDANTES);
-  }
+// Service instances
+export const trabajadoresService = new SharePointService('Trabajadores');
+export const mandantesService = new SharePointService('Mandantes');
+export const serviciosService = new SharePointService('Servicios');
+export const contratosService = new SharePointService('Contratos');
+export const cursosService = new SharePointService('Cursos');
+export const usuariosService = new SharePointService('Usuarios');
+export const rolesService = new SharePointService('Roles');
+export const directivasService = new SharePointService('Directivas');
+export const jornadasService = new SharePointService('Jornadas');
+export const vacacionesService = new SharePointService('Vacaciones');
+export const clientesService = new SharePointService('Clientes');
 
-  async createMandante(data: Record<string, unknown>) {
-    return this.createItem(SHAREPOINT_LISTS.MANDANTES, data);
-  }
-
-  async updateMandante(id: string, data: Record<string, unknown>) {
-    return this.updateItem(SHAREPOINT_LISTS.MANDANTES, id, data);
-  }
-
-  async deleteMandante(id: string) {
-    return this.deleteItem(SHAREPOINT_LISTS.MANDANTES, id);
-  }
-}
-
-export class TrabajadoresService extends SharePointService {
-  async getTrabajadores() {
-    return this.getItems(SHAREPOINT_LISTS.TRABAJADORES);
-  }
-
-  async getTrabajadorById(id: string) {
-    const items = await this.getItems(
-      SHAREPOINT_LISTS.TRABAJADORES, 
-      undefined, 
-      `fields/id eq '${id}'`
-    );
-    return items.length > 0 ? items[0] : null;
-  }
-
-  async createTrabajador(data: Record<string, unknown>) {
-    return this.createItem(SHAREPOINT_LISTS.TRABAJADORES, data);
-  }
-
-  async updateTrabajador(id: string, data: Record<string, unknown>) {
-    return this.updateItem(SHAREPOINT_LISTS.TRABAJADORES, id, data);
-  }
-
-  async deleteTrabajador(id: string) {
-    return this.deleteItem(SHAREPOINT_LISTS.TRABAJADORES, id);
+// Helper functions
+export async function checkSharePointConnection() {
+  try {
+    await sharePointClient.initializeSite();
+    return { success: true, message: 'Conexión exitosa con SharePoint' };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+    return { success: false, message: `Error de conexión: ${errorMessage}` };
   }
 }
-
-export class ServiciosService extends SharePointService {
-  async getServicios() {
-    return this.getItems(SHAREPOINT_LISTS.SERVICIOS);
-  }
-
-  async createServicio(data: Record<string, unknown>) {
-    return this.createItem(SHAREPOINT_LISTS.SERVICIOS, data);
-  }
-
-  async updateServicio(id: string, data: Record<string, unknown>) {
-    return this.updateItem(SHAREPOINT_LISTS.SERVICIOS, id, data);
-  }
-
-  async deleteServicio(id: string) {
-    return this.deleteItem(SHAREPOINT_LISTS.SERVICIOS, id);
-  }
-}
-
-export class VacacionesService extends SharePointService {
-  async getVacaciones() {
-    return this.getItems(SHAREPOINT_LISTS.VACACIONES);
-  }
-
-  async getVacacionesByTrabajador(trabajadorId: string) {
-    return this.getItems(
-      SHAREPOINT_LISTS.VACACIONES,
-      undefined,
-      `fields/trabajador_id eq '${trabajadorId}'`
-    );
-  }
-
-  async createVacacion(data: Record<string, unknown>) {
-    return this.createItem(SHAREPOINT_LISTS.VACACIONES, data);
-  }
-
-  async updateVacacion(id: string, data: Record<string, unknown>) {
-    return this.updateItem(SHAREPOINT_LISTS.VACACIONES, id, data);
-  }
-
-  async deleteVacacion(id: string) {
-    return this.deleteItem(SHAREPOINT_LISTS.VACACIONES, id);
-  }
-}
-
-export class DirectivasService extends SharePointService {
-  async getDirectivas() {
-    return this.getItems(SHAREPOINT_LISTS.DIRECTIVAS);
-  }
-
-  async createDirectiva(data: Record<string, unknown>) {
-    return this.createItem(SHAREPOINT_LISTS.DIRECTIVAS, data);
-  }
-
-  async updateDirectiva(id: string, data: Record<string, unknown>) {
-    return this.updateItem(SHAREPOINT_LISTS.DIRECTIVAS, id, data);
-  }
-
-  async deleteDirectiva(id: string) {
-    return this.deleteItem(SHAREPOINT_LISTS.DIRECTIVAS, id);
-  }
-}
-
-export class UsuariosService extends SharePointService {
-  async getUsuarios() {
-    return this.getItems(SHAREPOINT_LISTS.USUARIOS);
-  }
-
-  async getUsuarioByEmail(email: string) {
-    const items = await this.getItems(
-      SHAREPOINT_LISTS.USUARIOS,
-      undefined,
-      `fields/email eq '${email}'`
-    );
-    return items.length > 0 ? items[0] : null;
-  }
-
-  async createUsuario(data: Record<string, unknown>) {
-    return this.createItem(SHAREPOINT_LISTS.USUARIOS, data);
-  }
-
-  async updateUsuario(id: string, data: Record<string, unknown>) {
-    return this.updateItem(SHAREPOINT_LISTS.USUARIOS, id, data);
-  }
-
-  async getRoles() {
-    return this.getItems(SHAREPOINT_LISTS.ROLES);
-  }
-
-  async getPermisos() {
-    return this.getItems(SHAREPOINT_LISTS.PERMISOS);
-  }
-
-  async getRolPermisos(rolId: string) {
-    return this.getItems(
-      SHAREPOINT_LISTS.ROL_PERMISOS,
-      undefined,
-      `fields/rol_id eq '${rolId}'`
-    );
-  }
-
-  async assignPermissionToRole(rolId: string, permisoId: string) {
-    return this.createItem(SHAREPOINT_LISTS.ROL_PERMISOS, {
-      rol_id: rolId,
-      permiso_id: permisoId
-    });
-  }
-}
-
-// Export service instances
-export const mandantesService = new MandantesService();
-export const trabajadoresService = new TrabajadoresService();
-export const serviciosService = new ServiciosService();
-export const vacacionesService = new VacacionesService();
-export const directivasService = new DirectivasService();
-export const usuariosService = new UsuariosService();

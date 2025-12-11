@@ -1,63 +1,84 @@
-// SharePoint List Mappings for SAM ERP
+// SharePoint List Names - Update these to match your actual SharePoint list names
 export const SHAREPOINT_LISTS = {
-  // Módulo Administradores
-  MANDANTES: 'Tbl_Mandantes',
-  PRESUPUESTO: 'TBL_PRESUPUESTO',
-  
-  // Módulo RR.HH
-  JORNADAS: 'TBL_JORNADAS',
-  TRABAJADORES: 'TBL_TRABAJADORES',
-  SOLICITUD_CONTRATOS: 'SOLICITUD_CONTRATOS',
-  VACACIONES: 'TBL_VACACIONES',
-  
-  // Módulo OSP
-  SERVICIOS: 'TBL_SERVICIOS',
-  REGISTRO_CURSO_OS10: 'TBL_REGISTRO_CURSO_OS10',
-  DIRECTIVAS: 'TBL_DIRECTIVAS',
-  
-  // Sistema de usuarios y permisos (asumiendo que existen)
-  USUARIOS: 'TBL_USUARIOS',
-  ROLES: 'TBL_ROLES',
-  PERMISOS: 'TBL_PERMISOS',
-  ROL_PERMISOS: 'TBL_ROL_PERMISOS'
+  TRABAJADORES: 'Trabajadores',
+  MANDANTES: 'Mandantes', 
+  SERVICIOS: 'Servicios',
+  CONTRATOS: 'Contratos',
+  CURSOS: 'Cursos',
+  USUARIOS: 'Usuarios',
+  ROLES: 'Roles',
+  DIRECTIVAS: 'Directivas',
+  JORNADAS: 'Jornadas',
+  VACACIONES: 'Vacaciones',
+  CLIENTES: 'Clientes'
 } as const;
 
-// Módulos del sistema
-export const MODULES = {
-  ADMINISTRADORES: 'administradores',
-  RRHH: 'rrhh',
-  OSP: 'osp',
-  USUARIOS: 'usuarios'
+// SharePoint Field Mappings - Map SharePoint internal field names to display names
+export const FIELD_MAPPINGS = {
+  TRABAJADORES: {
+    'Id': 'id',
+    'Title': 'nombre',
+    'Apellido': 'apellido',
+    'RUT': 'rut',
+    'Email': 'email',
+    'Telefono': 'telefono',
+    'FechaIngreso': 'fecha_ingreso',
+    'Estado': 'estado',
+    'Cargo': 'cargo',
+    'Departamento': 'departamento'
+  },
+  MANDANTES: {
+    'Id': 'id',
+    'Title': 'nombre',
+    'RUT': 'rut',
+    'Direccion': 'direccion',
+    'Telefono': 'telefono',
+    'Email': 'email',
+    'Estado': 'estado',
+    'FechaCreacion': 'fecha_creacion'
+  },
+  SERVICIOS: {
+    'Id': 'id',
+    'Title': 'nombre',
+    'Descripcion': 'descripcion',
+    'Estado': 'estado',
+    'Precio': 'precio',
+    'Categoria': 'categoria'
+  },
+  CONTRATOS: {
+    'Id': 'id',
+    'Title': 'nombre',
+    'MandanteId': 'mandante_id',
+    'FechaInicio': 'fecha_inicio',
+    'FechaFin': 'fecha_fin',
+    'Estado': 'estado',
+    'Valor': 'valor'
+  },
+  USUARIOS: {
+    'Id': 'id',
+    'Title': 'nombre',
+    'Email': 'email',
+    'Estado': 'estado',
+    'Rol': 'rol',
+    'FechaCreacion': 'fecha_creacion'
+  }
 } as const;
 
-// Niveles de permisos
-export const PERMISSION_LEVELS = {
-  LECTURA: 'lectura',
-  COLABORACION: 'colaboracion',
-  ADMINISTRACION: 'administracion'
-} as const;
+// Transform SharePoint data to application format
+export function transformSharePointData(listName: keyof typeof FIELD_MAPPINGS, items: any[]): any[] {
+  const mapping = FIELD_MAPPINGS[listName];
+  if (!mapping || !items) return [];
 
-// Mapeo de módulos a listas
-export const MODULE_LISTS = {
-  [MODULES.ADMINISTRADORES]: [
-    SHAREPOINT_LISTS.MANDANTES,
-    SHAREPOINT_LISTS.PRESUPUESTO
-  ],
-  [MODULES.RRHH]: [
-    SHAREPOINT_LISTS.JORNADAS,
-    SHAREPOINT_LISTS.TRABAJADORES,
-    SHAREPOINT_LISTS.SOLICITUD_CONTRATOS,
-    SHAREPOINT_LISTS.VACACIONES
-  ],
-  [MODULES.OSP]: [
-    SHAREPOINT_LISTS.SERVICIOS,
-    SHAREPOINT_LISTS.REGISTRO_CURSO_OS10,
-    SHAREPOINT_LISTS.DIRECTIVAS
-  ],
-  [MODULES.USUARIOS]: [
-    SHAREPOINT_LISTS.USUARIOS,
-    SHAREPOINT_LISTS.ROLES,
-    SHAREPOINT_LISTS.PERMISOS,
-    SHAREPOINT_LISTS.ROL_PERMISOS
-  ]
-} as const;
+  return items.map(item => {
+    const transformed: any = {};
+    
+    // Transform fields based on mapping
+    Object.entries(mapping).forEach(([spField, appField]) => {
+      if (item.fields && item.fields[spField] !== undefined) {
+        transformed[appField] = item.fields[spField];
+      }
+    });
+
+    return transformed;
+  });
+}

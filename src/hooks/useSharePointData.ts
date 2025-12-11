@@ -1,114 +1,67 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useSharePointAuth } from '@/contexts/SharePointAuthContext';
 
 interface UseSharePointDataOptions {
   listName: string;
   select?: string;
   filter?: string;
-  orderBy?: string;
-  autoLoad?: boolean;
+  enabled?: boolean;
 }
 
 interface UseSharePointDataResult<T> {
-  data: T[];
+  data: T[] | null;
   loading: boolean;
-  error: string | null;
+  error: Error | null;
   refetch: () => Promise<void>;
-  create: (item: Partial<T>) => Promise<T>;
-  update: (id: string, item: Partial<T>) => Promise<T>;
-  remove: (id: string) => Promise<void>;
 }
 
-interface SharePointService {
-  getItems: (listName: string, select?: string, filter?: string, orderBy?: string) => Promise<unknown[]>;
-  createItem: (listName: string, item: Record<string, unknown>) => Promise<unknown>;
-  updateItem: (listName: string, id: string, item: Record<string, unknown>) => Promise<unknown>;
-  deleteItem: (listName: string, id: string) => Promise<void>;
-}
-
-export function useSharePointData<T = Record<string, unknown>>(
-  service: SharePointService,
+export function useSharePointData<T = any>(
+  service: any,
   options: UseSharePointDataOptions
 ): UseSharePointDataResult<T> {
-  const [data, setData] = useState<T[]>([]);
+  const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { user } = useSharePointAuth();
+  const [error, setError] = useState<Error | null>(null);
+  const { isAuthenticated, getAccessToken } = useSharePointAuth();
 
-  const fetchData = useCallback(async () => {
-    if (!user || !service) return;
+  const fetchData = async () => {
+    if (!options.enabled || !isAuthenticated) {
+      return;
+    }
 
     setLoading(true);
     setError(null);
 
     try {
-      const result = await service.getItems(
-        options.listName,
-        options.select,
-        options.filter,
-        options.orderBy
-      );
-      setData(result as T[]);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Error al cargar datos';
-      setError(errorMessage);
-      console.error(`Error fetching data from ${options.listName}:`, err);
+      // Ensure we have a valid access token
+      await getAccessToken();
+      
+      const result = await service.getAll({
+        select: options.select,
+        filter: options.filter
+      });
+      
+      setData(result);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Unknown error occurred');
+      setError(error);
+      console.error(`Error fetching data from ${options.listName}:`, error);
+      
+      // Set empty data on error to prevent UI crashes
+      setData([]);
     } finally {
       setLoading(false);
     }
-  }, [service, options.listName, options.select, options.filter, options.orderBy, user]);
-
-  const create = useCallback(async (item: Partial<T>): Promise<T> => {
-    if (!service) throw new Error('Service not available');
-
-    try {
-      const result = await service.createItem(options.listName, item as Record<string, unknown>);
-      await fetchData(); // Refresh data
-      return result as T;
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Error al crear elemento';
-      throw new Error(errorMessage);
-    }
-  }, [service, options.listName, fetchData]);
-
-  const update = useCallback(async (id: string, item: Partial<T>): Promise<T> => {
-    if (!service) throw new Error('Service not available');
-
-    try {
-      const result = await service.updateItem(options.listName, id, item as Record<string, unknown>);
-      await fetchData(); // Refresh data
-      return result as T;
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Error al actualizar elemento';
-      throw new Error(errorMessage);
-    }
-  }, [service, options.listName, fetchData]);
-
-  const remove = useCallback(async (id: string): Promise<void> => {
-    if (!service) throw new Error('Service not available');
-
-    try {
-      await service.deleteItem(options.listName, id);
-      await fetchData(); // Refresh data
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Error al eliminar elemento';
-      throw new Error(errorMessage);
-    }
-  }, [service, options.listName, fetchData]);
+  };
 
   useEffect(() => {
-    if (options.autoLoad !== false) {
-      fetchData();
-    }
-  }, [fetchData, options.autoLoad]);
+    fetchData();
+  }, [options.enabled, options.listName, isAuthenticated]);
 
   return {
     data,
     loading,
     error,
-    refetch: fetchData,
-    create,
-    update,
-    remove
+    refetch: fetchData
   };
 }
