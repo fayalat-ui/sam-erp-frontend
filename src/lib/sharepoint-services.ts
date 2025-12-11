@@ -55,7 +55,8 @@ class SharePointService<T = Record<string, unknown>> {
 
   async getById(id: string): Promise<SPItem | null> {
     try {
-      const items = (await sharePointClient.getListItems(this.listName, undefined, `Id eq ${id}`)) as SPItem[];
+      // Filter by top-level 'id' property of listItem
+      const items = (await sharePointClient.getListItems(this.listName, undefined, `id eq '${id}'`)) as SPItem[];
       return items[0] || null;
     } catch (error) {
       console.error(`Error fetching item ${id} from ${this.listName}:`, error);

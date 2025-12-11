@@ -123,7 +123,8 @@ class SharePointClient {
   }
 
   /**
-   * Get list items with optional select, filter, orderBy, and top.
+   * Get list items with optional fields selection, filter, orderBy, and top.
+   * When 'select' is provided, we apply it to fields via $expand=fields($select=...)
    */
   async getListItems(
     listNameOrId: string,
@@ -138,15 +139,30 @@ class SharePointClient {
       }
 
       const listId = await this.resolveListId(listNameOrId);
-      let query = this.graphClient.api(`/sites/${this.siteId}/lists/${listId}/items`).expand('fields');
 
-      if (select) {
-        query = query.select(select);
+      // Build expand for fields selection
+      let expandArg = 'fields';
+      if (select && typeof select === 'string') {
+        const fieldNames = select
+          .split(',')
+          .map((s) => s.trim())
+          // Exclude ID/id from fields selection; 'id' is top-level on listItem
+          .filter((s) => s.toLowerCase() !== 'id' && s.length > 0);
+
+        if (fieldNames.length > 0) {
+          expandArg = `fields($select=${fieldNames.join(',')})`;
+        }
       }
-      if (filter) {
+
+      let query = this.graphClient
+        .api(`/sites/${this.siteId}/lists/${listId}/items`)
+        .expand(expandArg);
+
+      // Only apply filter/orderby/top for valid inputs
+      if (filter && filter.trim().length > 0) {
         query = query.filter(filter);
       }
-      if (orderBy) {
+      if (orderBy && orderBy.trim().length > 0) {
         query = query.orderby(orderBy);
       }
       if (top && Number.isFinite(top)) {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,20 +8,28 @@ import { useSharePointData } from '@/hooks/useSharePointData';
 import { serviciosService } from '@/lib/sharepoint-services';
 import { SHAREPOINT_LISTS } from '@/lib/sharepoint-mappings';
 import { Plus, Search, Edit, Trash2, Briefcase } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface Servicio {
   id: string;
   nombre?: string;
-  empresa?: string;
+  empresa?: string; // cliente asociado
   rut_cliente?: string;
   direccion?: string;
-  zona?: string;
-  codigo_zona?: number;
+  ubicacion?: unknown; // puede venir como string o JSON
   dotacion?: number;
+  estado?: string;
+  // extras (no visibles en tabla base)
+  codigo_zona?: number;
   telefono?: string;
   responsable?: string;
   fecha_inicio_raw?: string;
-  estado?: string;
   tipo_empresa?: number;
   tipo_jornada?: string;
   ciudad?: string;
@@ -30,9 +38,31 @@ interface Servicio {
   activo_num?: number;
 }
 
+function formatUbicacion(s: Servicio): string {
+  if (!s) return '-';
+  if (typeof s.ubicacion === 'string' && s.ubicacion.trim().length > 0) return s.ubicacion;
+  if (s.ubicacion && typeof s.ubicacion === 'object') {
+    try {
+      // intenta serializar de forma corta
+      const obj = s.ubicacion as Record<string, unknown>;
+      const parts = ['calle', 'ciudad', 'region', 'pais']
+        .map((k) => (obj[k] ? String(obj[k]) : ''))
+        .filter(Boolean);
+      if (parts.length) return parts.join(', ');
+      return JSON.stringify(obj);
+    } catch {
+      return JSON.stringify(s.ubicacion);
+    }
+  }
+  if (s.direccion && s.direccion.trim().length > 0) return s.direccion;
+  return '-';
+}
+
 export default function Servicios() {
   const { canWrite, canAdmin } = useSharePointAuth();
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterCliente, setFilterCliente] = useState('all');
+  const [filterEstado, setFilterEstado] = useState('all');
 
   const {
     data: servicios,
@@ -42,26 +72,44 @@ export default function Servicios() {
     remove,
   } = useSharePointData<Servicio>(serviciosService, {
     listName: SHAREPOINT_LISTS.SERVICIOS,
-    // Seleccionar columnas reales según TBL_SERVICIOS
-    select:
-      'ID,NOMBRE,RUT_CLIENTE,TIPO_EMPRESA,EMPRESA,DIRECCION,UBICACION,ZONA,DOTACION,TELEFONO,RESPONSABLE,FECHA_INICIO,ESTADO,CODIGO_ZONA,CIUDAD,TIPO_JORNADA,ACTIVO_NUM,CIUDAD2,PAIS',
+    // Campos visibles requeridos por el módulo Servicios:
+    // nombre del servicio, cliente asociado, ubicación, dotación, estado
+    select: 'ID,NOMBRE,EMPRESA,UBICACION,DOTACION,ESTADO,DIRECCION',
   });
 
   const canEdit = canWrite('osp');
   const canDelete = canAdmin('osp');
 
-  const filteredServicios = (servicios ?? []).filter((servicio) => {
-    const s = searchTerm.toLowerCase();
-    return (
-      (servicio.nombre ?? '').toLowerCase().includes(s) ||
-      (servicio.empresa ?? '').toLowerCase().includes(s) ||
-      (servicio.rut_cliente ?? '').toLowerCase().includes(s) ||
-      (servicio.zona ?? '').toLowerCase().includes(s) ||
-      String(servicio.codigo_zona ?? '').toLowerCase().includes(s) ||
-      (servicio.ciudad ?? '').toLowerCase().includes(s) ||
-      (servicio.estado ?? '').toLowerCase().includes(s)
-    );
-  });
+  const clientesOptions = useMemo(() => {
+    const set = new Set<string>();
+    (servicios ?? []).forEach((s) => {
+      if (s.empresa && s.empresa.trim().length > 0) set.add(s.empresa.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [servicios]);
+
+  const estadosOptions = useMemo(() => {
+    const set = new Set<string>();
+    (servicios ?? []).forEach((s) => {
+      if (s.estado && s.estado.trim().length > 0) set.add(s.estado.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [servicios]);
+
+  const filteredServicios = useMemo(() => {
+    const sLower = searchTerm.toLowerCase();
+    return (servicios ?? []).filter((srv) => {
+      const matchSearch =
+        (srv.nombre ?? '').toLowerCase().includes(sLower) ||
+        (srv.empresa ?? '').toLowerCase().includes(sLower) ||
+        formatUbicacion(srv).toLowerCase().includes(sLower);
+
+      const matchCliente = filterCliente === 'all' ? true : (srv.empresa ?? '') === filterCliente;
+      const matchEstado = filterEstado === 'all' ? true : (srv.estado ?? '') === filterEstado;
+
+      return matchSearch && matchCliente && matchEstado;
+    });
+  }, [servicios, searchTerm, filterCliente, filterEstado]);
 
   const handleCreate = async () => {
     console.log('Create servicio');
@@ -119,7 +167,7 @@ export default function Servicios() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <CardTitle className="flex items-center gap-2">
               <Briefcase className="h-5 w-5" />
               Lista de Servicios ({filteredServicios.length})
@@ -128,12 +176,38 @@ export default function Servicios() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Buscar por nombre, empresa, RUT, zona, ciudad..."
+                  placeholder="Buscar por nombre, cliente o ubicación..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 w-64"
                 />
               </div>
+              <Select value={filterCliente} onValueChange={setFilterCliente}>
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los clientes</SelectItem>
+                  {clientesOptions.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterEstado} onValueChange={setFilterEstado}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  {estadosOptions.map((e) => (
+                    <SelectItem key={e} value={e}>
+                      {e}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
@@ -142,7 +216,9 @@ export default function Servicios() {
             <div className="text-center py-8">
               <Briefcase className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">
-                {searchTerm ? 'No se encontraron servicios' : 'No hay servicios registrados'}
+                {searchTerm || filterCliente !== 'all' || filterEstado !== 'all'
+                  ? 'No se encontraron servicios con ese criterio'
+                  : 'No hay servicios registrados'}
               </p>
             </div>
           ) : (
@@ -151,13 +227,9 @@ export default function Servicios() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-3 px-4 font-medium">Nombre</th>
-                    <th className="text-left py-3 px-4 font-medium">Empresa</th>
-                    <th className="text-left py-3 px-4 font-medium">RUT Cliente</th>
-                    <th className="text-left py-3 px-4 font-medium">Zona</th>
-                    <th className="text-left py-3 px-4 font-medium">Código Zona</th>
+                    <th className="text-left py-3 px-4 font-medium">Cliente</th>
+                    <th className="text-left py-3 px-4 font-medium">Ubicación</th>
                     <th className="text-left py-3 px-4 font-medium">Dotación</th>
-                    <th className="text-left py-3 px-4 font-medium">Teléfono</th>
-                    <th className="text-left py-3 px-4 font-medium">Tipo Jornada</th>
                     <th className="text-left py-3 px-4 font-medium">Estado</th>
                     {(canEdit || canDelete) && (
                       <th className="text-left py-3 px-4 font-medium">Acciones</th>
@@ -169,12 +241,8 @@ export default function Servicios() {
                     <tr key={servicio.id} className="border-b hover:bg-gray-50">
                       <td className="py-3 px-4">{servicio.nombre ?? '-'}</td>
                       <td className="py-3 px-4">{servicio.empresa ?? '-'}</td>
-                      <td className="py-3 px-4 font-mono text-sm">{servicio.rut_cliente ?? '-'}</td>
-                      <td className="py-3 px-4">{servicio.zona ?? '-'}</td>
-                      <td className="py-3 px-4">{servicio.codigo_zona ?? '-'}</td>
+                      <td className="py-3 px-4">{formatUbicacion(servicio)}</td>
                       <td className="py-3 px-4">{servicio.dotacion ?? '-'}</td>
-                      <td className="py-3 px-4">{servicio.telefono ?? '-'}</td>
-                      <td className="py-3 px-4">{servicio.tipo_jornada ?? '-'}</td>
                       <td className="py-3 px-4">
                         {servicio.estado ? (
                           <Badge variant="outline">{servicio.estado}</Badge>
