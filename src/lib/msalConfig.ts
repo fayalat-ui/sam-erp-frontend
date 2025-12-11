@@ -1,57 +1,38 @@
-import { Configuration, PopupRequest } from '@azure/msal-browser';
+import { Configuration, PopupRequest } from "@azure/msal-browser";
 
 // MSAL configuration
 export const msalConfig: Configuration = {
   auth: {
-    clientId: import.meta.env.VITE_AZURE_CLIENT_ID || '4523a41a-818e-4d92-8775-1ccf155e7327',
-    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_AZURE_TENANT_ID || '2f7e4660-def9-427d-9c23-603e4e4dae55'}`,
-    redirectUri: import.meta.env.VITE_REDIRECT_URI || window.location.origin,
-    postLogoutRedirectUri: window.location.origin,
+    clientId: "4523a41a-818e-4d92-8775-1ccf155e7327", // Application (client) ID from Azure portal
+    authority: "https://login.microsoftonline.com/2f7e4660-def9-427d-9c23-603e4e4dae55", // Directory (tenant) ID
+    redirectUri: "https://samerp.cl", // Must be registered as a redirect URI in Azure portal
   },
   cache: {
-    cacheLocation: 'sessionStorage',
-    storeAuthStateInCookie: false,
+    cacheLocation: "sessionStorage", // This configures where your cache will be stored
+    storeAuthStateInCookie: false, // Set this to "true" if you are having issues on IE11 or Edge
   },
-  system: {
-    loggerOptions: {
-      loggerCallback: (level, message, containsPii) => {
-        if (containsPii) {
-          return;
-        }
-        switch (level) {
-          case 1: // Error
-            console.error('[MSAL Error]:', message);
-            return;
-          case 2: // Warning
-            console.warn('[MSAL Warning]:', message);
-            return;
-          case 3: // Info
-            console.info('[MSAL Info]:', message);
-            return;
-          case 4: // Verbose
-            console.debug('[MSAL Debug]:', message);
-            return;
-          default:
-            return;
-        }
-      }
-    }
-  }
 };
 
-// Add here scopes for id token to be used at MS Identity Platform endpoints.
+// Add scopes here for ID token to be used at Microsoft Graph API endpoints.
 export const loginRequest: PopupRequest = {
   scopes: [
-    'User.Read',
-    'Sites.Read.All', 
-    'Sites.ReadWrite.All',
-    'Files.ReadWrite.All'
+    "User.Read",
+    "Sites.Read.All",
+    "Sites.ReadWrite.All",
+    "Files.Read.All",
+    "Files.ReadWrite.All",
+    "Group.Read.All",
+    "Directory.Read.All",
+    "User.ReadBasic.All",
+    "Calendars.Read",
+    "Mail.Read",
+    "Tasks.Read",
+    "Notes.Read.All"
   ],
-  prompt: 'select_account'
 };
 
-// Add here the endpoints for MS Graph API services you would like to use.
+// Add the endpoints here for Microsoft Graph API services you'd like to use.
 export const graphConfig = {
-  graphMeEndpoint: 'https://graph.microsoft.com/v1.0/me',
-  graphSitesEndpoint: 'https://graph.microsoft.com/v1.0/sites'
+  graphMeEndpoint: "https://graph.microsoft.com/v1.0/me",
+  graphSitesEndpoint: "https://graph.microsoft.com/v1.0/sites",
 };
