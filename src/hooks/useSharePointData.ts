@@ -8,8 +8,21 @@ interface UseSharePointDataOptions {
   enabled?: boolean;
 }
 
+interface SharePointQueryOptions {
+  select?: string;
+  filter?: string;
+  orderBy?: string;
+  top?: number;
+}
+
 interface SharePointServiceLike<T> {
-  getAll: (options: { select?: string; filter?: string; orderBy?: string; top?: number }) => Promise<T[]>;
+  getAll: (options: SharePointQueryOptions) => Promise<T[]>;
+}
+
+interface SharePointWritableServiceLike<T> extends SharePointServiceLike<T> {
+  create?: (data: Record<string, unknown>) => Promise<unknown>;
+  update?: (id: string, data: Record<string, unknown>) => Promise<unknown>;
+  delete?: (id: string) => Promise<unknown>;
 }
 
 interface UseSharePointDataResult<T> {
@@ -17,10 +30,13 @@ interface UseSharePointDataResult<T> {
   loading: boolean;
   error: Error | null;
   refetch: () => Promise<void>;
+  create?: (data: Record<string, unknown>) => Promise<void>;
+  update?: (id: string, data: Record<string, unknown>) => Promise<void>;
+  remove?: (id: string) => Promise<void>;
 }
 
 export function useSharePointData<T>(
-  service: SharePointServiceLike<T>,
+  service: SharePointServiceLike<T> | SharePointWritableServiceLike<T>,
   options: UseSharePointDataOptions
 ): UseSharePointDataResult<T> {
   const [data, setData] = useState<T[] | null>(null);
@@ -58,15 +74,41 @@ export function useSharePointData<T>(
     }
   };
 
+  const writable = service as SharePointWritableServiceLike<T>;
+
+  const create = writable.create
+    ? async (payload: Record<string, unknown>) => {
+        await writable.create!(payload);
+        await fetchData();
+      }
+    : undefined;
+
+  const update = writable.update
+    ? async (id: string, payload: Record<string, unknown>) => {
+        await writable.update!(id, payload);
+        await fetchData();
+      }
+    : undefined;
+
+  const remove = writable.delete
+    ? async (id: string) => {
+        await writable.delete!(id);
+        await fetchData();
+      }
+    : undefined;
+
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options.enabled, options.listName, isAuthenticated]);
+  }, [options.enabled, options.listName, isAuthenticated, options.select, options.filter]);
 
   return {
     data,
     loading,
     error,
     refetch: fetchData,
+    create,
+    update,
+    remove,
   };
 }

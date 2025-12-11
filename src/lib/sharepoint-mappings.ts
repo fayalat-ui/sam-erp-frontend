@@ -7,7 +7,7 @@
 export const SHAREPOINT_LISTS = {
   TRABAJADORES: 'Trabajadores',
   MANDANTES: 'Mandantes',
-  SERVICIOS: 'Servicios',
+  SERVICIOS: 'TBL_SERVICIOS', // actualizado según nombres provistos
   CONTRATOS: 'Contratos',
   CURSOS: 'Cursos',
   USUARIOS: 'Usuarios',
@@ -22,10 +22,7 @@ type Mapping = Record<string, string>;
 
 /**
  * FIELD_MAPPINGS: Map SharePoint internal field names → app field names per list.
- * Adjust keys to match your actual SharePoint column internal names.
- * Common defaults:
- * - Title: main text column
- * - Email, Telefono, Direccion, Estado, RUT are typical custom columns
+ * Ajustado para coincidir con la lista TBL_SERVICIOS y sus columnas internas.
  */
 export const FIELD_MAPPINGS = {
   TRABAJADORES: {
@@ -38,7 +35,7 @@ export const FIELD_MAPPINGS = {
     Cargo: 'cargo',
     Departamento: 'departamento',
     FechaIngreso: 'fecha_ingreso',
-    Estado: 'activo', // boolean or string
+    Estado: 'activo', // boolean o texto
   },
   MANDANTES: {
     Id: 'id',
@@ -51,15 +48,33 @@ export const FIELD_MAPPINGS = {
     FechaCreacion: 'fecha_creacion',
     Contacto: 'contacto',
   },
+  // Mapeo real de TBL_SERVICIOS
   SERVICIOS: {
-    Id: 'id',
-    Title: 'nombre',
-    Descripcion: 'descripcion',
-    Estado: 'estado',
-    Precio: 'precio',
-    Categoria: 'categoria',
-    Codigo: 'codigo',
-    Activo: 'activo',
+    ID: 'id',
+    NOMBRE: 'nombre',
+    RUT_CLIENTE: 'rut_cliente',
+    TIPO_EMPRESA: 'tipo_empresa',
+    EMPRESA: 'empresa',
+    DIRECCION: 'direccion',
+    UBICACION: 'ubicacion', // json estructurado
+    ZONA: 'zona',
+    DOTACION: 'dotacion',
+    TELEFONO: 'telefono',
+    RESPONSABLE: 'responsable',
+    FECHA_INICIO: 'fecha_inicio_raw', // guardamos texto crudo
+    ESTADO: 'estado',
+    CODIGO_ZONA: 'codigo_zona',
+    CIUDAD: 'ciudad',
+    EMPRESA_CONTRATISTA: 'empresa_contratista',
+    RUT_EMPRESA: 'rut_empresa',
+    TIPO_JORNADA: 'tipo_jornada',
+    COL19: 'col19',
+    COL20: 'col20',
+    ACTIVO_NUM: 'activo_num', // integer (0 habitual)
+    CALLE: 'calle',
+    CIUDAD2: 'ciudad2',
+    PAIS: 'pais',
+    GEOM: 'geom', // texto: "Point (lon lat)"; si se activa PostGIS, cambiar tipo
   },
   CONTRATOS: {
     Id: 'id',
@@ -133,7 +148,7 @@ export function transformSharePointData<K extends FieldMappingKey, T = Record<st
     const transformed: Record<string, unknown> = {};
     const fields = (item?.fields ?? item) as Record<string, unknown>;
 
-    // Always include 'id'
+    // Siempre incluir 'id'
     transformed.id = (item?.id ??
       (fields?.Id as string | number | undefined) ??
       (fields?.ID as string | number | undefined)) as string | number | undefined;

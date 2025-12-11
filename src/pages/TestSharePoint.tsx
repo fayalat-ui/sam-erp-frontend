@@ -7,6 +7,7 @@ import { Shield, CheckCircle2, XCircle, Database } from 'lucide-react';
 import { useSharePointAuth } from '@/contexts/SharePointAuthContext';
 import { SHAREPOINT_LISTS } from '@/lib/sharepoint-mappings';
 import { sharePointClient } from '@/lib/sharepoint';
+import { useNavigate } from 'react-router-dom';
 
 type SiteInfo = {
   id?: string;
@@ -29,6 +30,7 @@ export default function TestSharePoint() {
   const [listsStatus, setListsStatus] = useState<ListResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [filterTop, setFilterTop] = useState(1);
+  const navigate = useNavigate();
 
   const listNamesToCheck = [
     SHAREPOINT_LISTS.TRABAJADORES,
@@ -89,7 +91,7 @@ export default function TestSharePoint() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-lg bg-blue-600 text-white">
             <Shield className="h-6 w-6" />
@@ -99,9 +101,13 @@ export default function TestSharePoint() {
             <p className="text-gray-600">Verificación de autenticación y lectura de listas</p>
           </div>
         </div>
-        <Button onClick={runDiagnostics} disabled={loading}>
-          {loading ? 'Ejecutando...' : 'Re-ejecutar diagnóstico'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => navigate('/servicios')}>Servicios</Button>
+          <Button variant="outline" onClick={() => navigate('/clientes')}>Clientes</Button>
+          <Button onClick={runDiagnostics} disabled={loading}>
+            {loading ? 'Ejecutando...' : 'Re-ejecutar diagnóstico'}
+          </Button>
+        </div>
       </div>
 
       {/* Estado de autenticación */}

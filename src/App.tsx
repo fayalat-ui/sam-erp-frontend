@@ -32,7 +32,9 @@ const App = () => (
       <SharePointAuthProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            {/* Redirección por defecto a la página de diagnóstico */}
+            <Route path="/" element={<Navigate to="/test-sharepoint" replace />} />
+
             <Route path="/login" element={<LoginPage />} />
             <Route
               path="/dashboard"
@@ -43,17 +45,10 @@ const App = () => (
               }
             />
 
-            {/* Diagnóstico SharePoint */}
-            <Route
-              path="/test-sharepoint"
-              element={
-                <ProtectedRoute module="usuarios" level="lectura">
-                  <TestSharePoint />
-                </ProtectedRoute>
-              }
-            />
+            {/* Diagnóstico SharePoint: sin protección para facilitar pruebas */}
+            <Route path="/test-sharepoint" element={<TestSharePoint />} />
 
-            {/* Módulo RR.HH */}
+            {/* Módulo RR.HH (mantiene protección) */}
             <Route
               path="/trabajadores"
               element={
@@ -80,14 +75,8 @@ const App = () => (
             />
 
             {/* Módulo Administradores */}
-            <Route
-              path="/clientes"
-              element={
-                <ProtectedRoute module="administradores" level="lectura">
-                  <Clientes />
-                </ProtectedRoute>
-              }
-            />
+            {/* Clientes: temporalmente sin protección para demo */}
+            <Route path="/clientes" element={<Clientes />} />
             <Route
               path="/mandantes"
               element={
@@ -98,14 +87,8 @@ const App = () => (
             />
 
             {/* Módulo OSP */}
-            <Route
-              path="/servicios"
-              element={
-                <ProtectedRoute module="osp" level="lectura">
-                  <Servicios />
-                </ProtectedRoute>
-              }
-            />
+            {/* Servicios: temporalmente sin protección para demo */}
+            <Route path="/servicios" element={<Servicios />} />
             <Route
               path="/contratos"
               element={
@@ -149,7 +132,7 @@ const App = () => (
               }
             />
 
-            {/* Placeholders para módulos en migración (si agregas rutas a proveedores/ventas/inventario) */}
+            {/* Placeholders para módulos en migración */}
             <Route
               path="/proveedores"
               element={

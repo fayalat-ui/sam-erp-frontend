@@ -11,51 +11,70 @@ import { Plus, Search, Edit, Trash2, Briefcase } from 'lucide-react';
 
 interface Servicio {
   id: string;
-  nombre: string;
-  descripcion: string;
-  codigo: string;
-  categoria: string;
-  precio: number;
-  activo: boolean;
+  nombre?: string;
+  empresa?: string;
+  rut_cliente?: string;
+  direccion?: string;
+  zona?: string;
+  codigo_zona?: number;
+  dotacion?: number;
+  telefono?: string;
+  responsable?: string;
+  fecha_inicio_raw?: string;
+  estado?: string;
+  tipo_empresa?: number;
+  tipo_jornada?: string;
+  ciudad?: string;
+  ciudad2?: string;
+  pais?: string;
+  activo_num?: number;
 }
 
 export default function Servicios() {
   const { canCollaborate, canAdministrate } = useSharePointAuth();
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   const {
     data: servicios,
     loading,
     error,
     refetch,
-    create,
-    update,
-    remove
+    remove,
   } = useSharePointData<Servicio>(serviciosService, {
     listName: SHAREPOINT_LISTS.SERVICIOS,
-    select: 'id,nombre,descripcion,codigo,categoria,precio,activo'
+    // Seleccionar columnas reales según TBL_SERVICIOS
+    select:
+      'ID,NOMBRE,RUT_CLIENTE,TIPO_EMPRESA,EMPRESA,DIRECCION,UBICACION,ZONA,DOTACION,TELEFONO,RESPONSABLE,FECHA_INICIO,ESTADO,CODIGO_ZONA,CIUDAD,TIPO_JORNADA,ACTIVO_NUM,CIUDAD2,PAIS',
   });
 
   const canEdit = canCollaborate('osp');
   const canDelete = canAdministrate('osp');
 
-  const filteredServicios = servicios.filter(servicio =>
-    servicio.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    servicio.codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    servicio.categoria?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredServicios = (servicios ?? []).filter((servicio) => {
+    const s = searchTerm.toLowerCase();
+    return (
+      (servicio.nombre ?? '').toLowerCase().includes(s) ||
+      (servicio.empresa ?? '').toLowerCase().includes(s) ||
+      (servicio.rut_cliente ?? '').toLowerCase().includes(s) ||
+      (servicio.zona ?? '').toLowerCase().includes(s) ||
+      String(servicio.codigo_zona ?? '').toLowerCase().includes(s) ||
+      (servicio.ciudad ?? '').toLowerCase().includes(s) ||
+      (servicio.estado ?? '').toLowerCase().includes(s)
+    );
+  });
 
   const handleCreate = async () => {
-    // TODO: Implement create modal
+    // TODO: Implementar modal de creación si lo apruebas
     console.log('Create servicio');
   };
 
   const handleEdit = async (servicio: Servicio) => {
-    // TODO: Implement edit modal
+    // TODO: Implementar modal de edición si lo apruebas
     console.log('Edit servicio:', servicio);
   };
 
   const handleDelete = async (id: string) => {
+    if (!remove) return;
     if (confirm('¿Estás seguro de que deseas eliminar este servicio?')) {
       try {
         await remove(id);
@@ -79,7 +98,7 @@ export default function Servicios() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Servicios</h1>
-          <p className="text-gray-600">Gestión de servicios OSP</p>
+          <p className="text-gray-600">Gestión de servicios OSP (SharePoint: TBL_SERVICIOS)</p>
         </div>
         {canEdit && (
           <Button onClick={handleCreate} className="flex items-center gap-2">
@@ -92,7 +111,7 @@ export default function Servicios() {
       {error && (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="p-4">
-            <p className="text-red-800">Error: {error}</p>
+            <p className="text-red-800">Error: {error.message}</p>
             <Button onClick={refetch} variant="outline" size="sm" className="mt-2">
               Reintentar
             </Button>
@@ -111,7 +130,7 @@ export default function Servicios() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Buscar servicios..."
+                  placeholder="Buscar por nombre, empresa, RUT, zona, ciudad..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 w-64"
@@ -133,10 +152,14 @@ export default function Servicios() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-3 px-4 font-medium">Servicio</th>
-                    <th className="text-left py-3 px-4 font-medium">Código</th>
-                    <th className="text-left py-3 px-4 font-medium">Categoría</th>
-                    <th className="text-left py-3 px-4 font-medium">Precio</th>
+                    <th className="text-left py-3 px-4 font-medium">Nombre</th>
+                    <th className="text-left py-3 px-4 font-medium">Empresa</th>
+                    <th className="text-left py-3 px-4 font-medium">RUT Cliente</th>
+                    <th className="text-left py-3 px-4 font-medium">Zona</th>
+                    <th className="text-left py-3 px-4 font-medium">Código Zona</th>
+                    <th className="text-left py-3 px-4 font-medium">Dotación</th>
+                    <th className="text-left py-3 px-4 font-medium">Teléfono</th>
+                    <th className="text-left py-3 px-4 font-medium">Tipo Jornada</th>
                     <th className="text-left py-3 px-4 font-medium">Estado</th>
                     {(canEdit || canDelete) && (
                       <th className="text-left py-3 px-4 font-medium">Acciones</th>
@@ -146,37 +169,26 @@ export default function Servicios() {
                 <tbody>
                   {filteredServicios.map((servicio) => (
                     <tr key={servicio.id} className="border-b hover:bg-gray-50">
+                      <td className="py-3 px-4">{servicio.nombre ?? '-'}</td>
+                      <td className="py-3 px-4">{servicio.empresa ?? '-'}</td>
+                      <td className="py-3 px-4 font-mono text-sm">{servicio.rut_cliente ?? '-'}</td>
+                      <td className="py-3 px-4">{servicio.zona ?? '-'}</td>
+                      <td className="py-3 px-4">{servicio.codigo_zona ?? '-'}</td>
+                      <td className="py-3 px-4">{servicio.dotacion ?? '-'}</td>
+                      <td className="py-3 px-4">{servicio.telefono ?? '-'}</td>
+                      <td className="py-3 px-4">{servicio.tipo_jornada ?? '-'}</td>
                       <td className="py-3 px-4">
-                        <div>
-                          <div className="font-medium">{servicio.nombre}</div>
-                          {servicio.descripcion && (
-                            <div className="text-sm text-gray-500">{servicio.descripcion}</div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-sm">{servicio.codigo}</td>
-                      <td className="py-3 px-4">{servicio.categoria}</td>
-                      <td className="py-3 px-4">
-                        {servicio.precio && (
-                          <span className="font-medium">
-                            ${servicio.precio.toLocaleString()}
-                          </span>
+                        {servicio.estado ? (
+                          <Badge variant="outline">{servicio.estado}</Badge>
+                        ) : (
+                          <span className="text-gray-400">-</span>
                         )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant={servicio.activo ? "default" : "secondary"}>
-                          {servicio.activo ? "Activo" : "Inactivo"}
-                        </Badge>
                       </td>
                       {(canEdit || canDelete) && (
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
                             {canEdit && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEdit(servicio)}
-                              >
+                              <Button variant="outline" size="sm" onClick={() => handleEdit(servicio)}>
                                 <Edit className="h-4 w-4" />
                               </Button>
                             )}
