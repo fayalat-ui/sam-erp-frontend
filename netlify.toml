@@ -1,34 +1,12 @@
 [build]
-  publish = "dist"
-  command = "pnpm run build"
+command = "pnpm run build"
+publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "18"
+NODE_VERSION = "18"
 
+# SPA fallback for React/Vite on Netlify
 [[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-[context.production.environment]
-  VITE_AZURE_CLIENT_ID = "4523a41a-818e-4d92-8775-1ccf155e7327"
-  VITE_AZURE_TENANT_ID = "2f7e4660-def9-427d-9c23-603e4e4dae55"
-  VITE_REDIRECT_URI = "https://samerp.cl"
-  VITE_SHAREPOINT_SITE_URL = "https://seguryservicios.sharepoint.com"
-  VITE_SHAREPOINT_SITE_ID = "/sites/root"
-
-[context.deploy-preview.environment]
-  VITE_AZURE_CLIENT_ID = "4523a41a-818e-4d92-8775-1ccf155e7327"
-  VITE_AZURE_TENANT_ID = "2f7e4660-def9-427d-9c23-603e4e4dae55"
-  VITE_REDIRECT_URI = "https://deploy-preview-{{REVIEW_ID}}--samerp.netlify.app"
-  VITE_SHAREPOINT_SITE_URL = "https://seguryservicios.sharepoint.com"
-  VITE_SHAREPOINT_SITE_ID = "/sites/root"
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options = "DENY"
-    X-XSS-Protection = "1; mode=block"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://login.microsoftonline.com https://graph.microsoft.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://seguryservicios.sharepoint.com; img-src 'self' data: https:; font-src 'self' data:; frame-src https://login.microsoftonline.com;"
+from = "/*"
+to = "/index.html"
+status = 200
