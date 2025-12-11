@@ -5,7 +5,7 @@
  */
 
 export const SHAREPOINT_LISTS = {
-  TRABAJADORES: 'Trabajadores',
+  TRABAJADORES: 'TBL_TRABAJADORES', // actualizado al nombre real
   MANDANTES: 'Mandantes',
   SERVICIOS: 'TBL_SERVICIOS', // actualizado según nombres provistos
   CONTRATOS: 'Contratos',
@@ -22,31 +22,57 @@ type Mapping = Record<string, string>;
 
 /**
  * FIELD_MAPPINGS: Map SharePoint internal field names → app field names per list.
- * Ajustado para coincidir con la lista TBL_SERVICIOS y sus columnas internas.
+ * Ajustado para coincidir con las columnas internas provistas.
  */
 export const FIELD_MAPPINGS = {
   TRABAJADORES: {
-    Id: 'id',
-    Title: 'nombre', // e.g., full name or first name
-    Apellido: 'apellido',
+    ID: 'id',
+    Title: 'title',
+    Nombres: 'nombres',
+    Apellidos: 'apellidos',
     RUT: 'rut',
-    Email: 'email',
+    Nacimiento: 'nacimiento',
+    Estado_Civil: 'estado_civil',
+    Celular: 'celular',
+    Correo_Empresa: 'correo_empresa',
     Telefono: 'telefono',
+    Direccion: 'direccion',
+    Ciudad_Pais: 'ciudad_pais',
+    Ciudad_Estado: 'ciudad_estado',
+    Ciudad_Nombre: 'ciudad_nombre',
+    Ciudad_Calle: 'ciudad_calle',
+    Ciudad_CPostal: 'ciudad_cpostal',
+    Ciudad_Coordenadas: 'ciudad_coordenadas',
     Cargo: 'cargo',
-    Departamento: 'departamento',
-    FechaIngreso: 'fecha_ingreso',
-    Estado: 'activo', // boolean o texto
+    Tipo_Contrato: 'tipo_contrato',
+    Sueldo_Base: 'sueldo_base',
+    AFP: 'afp',
+    Salud: 'salud',
+    Banco: 'banco',
+    Tipo_Cuenta: 'tipo_cuenta',
+    Numero_Cuenta: 'numero_cuenta',
+    Fecha_Ingreso: 'fecha_ingreso',
+    FOTO_TRABAJADOR_: 'foto_trabajador',
+    DOC_CURSO: 'doc_curso',
+    ESTADO_: 'estado',
+    Notas: 'notas',
   },
   MANDANTES: {
-    Id: 'id',
-    Title: 'nombre',
-    RUT: 'rut',
-    Direccion: 'direccion',
-    Telefono: 'telefono',
-    Email: 'email',
-    Estado: 'estado',
-    FechaCreacion: 'fecha_creacion',
-    Contacto: 'contacto',
+    ID: 'id',
+    Nombre_mandante: 'nombre',
+    Rut_mandante: 'rut',
+    Direccion_mandante: 'direccion',
+    Razon_Social_mandante: 'razon_social',
+    Giro_mandante: 'giro',
+    telefono_mandante: 'telefono',
+    Representante_legal: 'representante_legal',
+    _OldID: 'old_id',
+    Adjuntos: 'adjuntos',
+    ContentTypeId: 'content_type_id',
+    Modified: 'modified',
+    Created: 'created',
+    Author: 'author',
+    Editor: 'editor',
   },
   // Mapeo real de TBL_SERVICIOS
   SERVICIOS: {

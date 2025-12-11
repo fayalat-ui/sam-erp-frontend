@@ -1,7 +1,7 @@
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { SharePointAuthProvider } from '@/contexts/SharePointAuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import Index from './pages/Index';
@@ -32,8 +32,8 @@ const App = () => (
       <SharePointAuthProvider>
         <BrowserRouter>
           <Routes>
-            {/* Redirección por defecto a la página de diagnóstico */}
-            <Route path="/" element={<Navigate to="/test-sharepoint" replace />} />
+            {/* Ruta raíz como en el inicio: Index hace verificación y redirige a login/dashboard */}
+            <Route path="/" element={<Index />} />
 
             <Route path="/login" element={<LoginPage />} />
             <Route
@@ -45,10 +45,10 @@ const App = () => (
               }
             />
 
-            {/* Diagnóstico SharePoint: sin protección para facilitar pruebas */}
+            {/* Página de diagnóstico SharePoint disponible, pero no es la ruta por defecto */}
             <Route path="/test-sharepoint" element={<TestSharePoint />} />
 
-            {/* Módulo RR.HH (mantiene protección) */}
+            {/* Módulo RR.HH (protegido) */}
             <Route
               path="/trabajadores"
               element={
@@ -75,8 +75,14 @@ const App = () => (
             />
 
             {/* Módulo Administradores */}
-            {/* Clientes: temporalmente sin protección para demo */}
-            <Route path="/clientes" element={<Clientes />} />
+            <Route
+              path="/clientes"
+              element={
+                <ProtectedRoute module="administradores" level="lectura">
+                  <Clientes />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/mandantes"
               element={
@@ -87,8 +93,14 @@ const App = () => (
             />
 
             {/* Módulo OSP */}
-            {/* Servicios: temporalmente sin protección para demo */}
-            <Route path="/servicios" element={<Servicios />} />
+            <Route
+              path="/servicios"
+              element={
+                <ProtectedRoute module="osp" level="lectura">
+                  <Servicios />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/contratos"
               element={
@@ -132,7 +144,7 @@ const App = () => (
               }
             />
 
-            {/* Placeholders para módulos en migración */}
+            {/* Placeholders para módulos en migración (protegidos) */}
             <Route
               path="/proveedores"
               element={

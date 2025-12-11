@@ -15,7 +15,7 @@ type SPItem = {
 
 /**
  * Generic SharePoint service bound to a list name.
- * listName should match actual SharePoint list title (e.g., "Clientes").
+ * listName should match actual SharePoint list title (e.g., "Clientes", "TBL_SERVICIOS").
  */
 class SharePointService<T = Record<string, unknown>> {
   constructor(private listName: string) {}
@@ -30,11 +30,15 @@ class SharePointService<T = Record<string, unknown>> {
         options.top
       )) as SPItem[];
 
-      // Try to find a matching mapping key by case-insensitive comparison
-      const listKey = Object.keys(FIELD_MAPPINGS).find((key) => key.toLowerCase() === this.listName.toLowerCase());
+      // Normalize list name to find a FIELD_MAPPINGS key:
+      // - Case-insensitive
+      // - Remove common "TBL_" prefix (e.g., "TBL_SERVICIOS" -> "SERVICIOS")
+      const target = this.listName.replace(/^tbl_/i, '').toLowerCase();
+      const keys = Object.keys(FIELD_MAPPINGS) as Array<keyof typeof FIELD_MAPPINGS>;
+      const listKey = keys.find((key) => key.toLowerCase() === target);
 
-      if (listKey && (listKey as keyof typeof FIELD_MAPPINGS) in FIELD_MAPPINGS) {
-        return transformSharePointData(listKey as keyof typeof FIELD_MAPPINGS, items) as T[];
+      if (listKey && listKey in FIELD_MAPPINGS) {
+        return transformSharePointData(listKey, items) as T[];
       }
 
       // Fallback: flatten items to {id, ...fields}
@@ -88,9 +92,10 @@ class SharePointService<T = Record<string, unknown>> {
 }
 
 // Service instances
-export const trabajadoresService = new SharePointService('Trabajadores');
+export const trabajadoresService = new SharePointService('TBL_TRABAJADORES');
 export const mandantesService = new SharePointService('Mandantes');
-export const serviciosService = new SharePointService('Servicios');
+// Servicios: usar el nombre real de la lista TBL_SERVICIOS
+export const serviciosService = new SharePointService('TBL_SERVICIOS');
 export const contratosService = new SharePointService('Contratos');
 export const cursosService = new SharePointService('Cursos');
 export const usuariosService = new SharePointService('Usuarios');
