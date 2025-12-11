@@ -1,138 +1,204 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useSharePointAuth } from '@/contexts/SharePointAuthContext';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { 
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useSharePointAuth } from '@/contexts/SharePointAuthContext';
+import {
   LayoutDashboard,
-  Users, 
-  Building2, 
-  Briefcase, 
+  Users,
+  Building2,
+  Briefcase,
   FileText,
   Calendar,
   Settings,
-  LogOut,
-  Menu,
-  X,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  LogOut,
+  User,
+  Shield
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
-interface MenuItem {
+interface NavItem {
   title: string;
-  icon: any;
   href?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children?: NavItem[];
   module?: string;
   level?: string;
-  children?: MenuItem[];
 }
 
-const menuItems: MenuItem[] = [
+const navigation: NavItem[] = [
   {
     title: 'Dashboard',
-    icon: LayoutDashboard,
-    href: '/dashboard'
+    href: '/dashboard',
+    icon: LayoutDashboard
   },
   {
     title: 'RR.HH',
     icon: Users,
     module: 'rrhh',
-    level: 'lectura',
     children: [
-      { title: 'Trabajadores', icon: Users, href: '/trabajadores', module: 'rrhh', level: 'lectura' },
-      { title: 'Vacaciones', icon: Calendar, href: '/vacaciones', module: 'rrhh', level: 'lectura' },
-      { title: 'Jornadas', icon: Calendar, href: '/jornadas', module: 'rrhh', level: 'lectura' }
+      {
+        title: 'Trabajadores',
+        href: '/trabajadores',
+        icon: Users,
+        module: 'rrhh',
+        level: 'lectura'
+      },
+      {
+        title: 'Vacaciones',
+        href: '/vacaciones',
+        icon: Calendar,
+        module: 'rrhh',
+        level: 'lectura'
+      },
+      {
+        title: 'Jornadas',
+        href: '/jornadas',
+        icon: Calendar,
+        module: 'rrhh',
+        level: 'lectura'
+      }
     ]
   },
   {
     title: 'Administradores',
     icon: Building2,
     module: 'administradores',
-    level: 'lectura',
     children: [
-      { title: 'Clientes', icon: Building2, href: '/clientes', module: 'administradores', level: 'lectura' },
-      { title: 'Mandantes', icon: Building2, href: '/mandantes', module: 'administradores', level: 'lectura' }
+      {
+        title: 'Clientes',
+        href: '/clientes',
+        icon: Building2,
+        module: 'administradores',
+        level: 'lectura'
+      },
+      {
+        title: 'Mandantes',
+        href: '/mandantes',
+        icon: Building2,
+        module: 'administradores',
+        level: 'lectura'
+      }
     ]
   },
   {
     title: 'OSP',
     icon: Briefcase,
     module: 'osp',
-    level: 'lectura',
     children: [
-      { title: 'Servicios', icon: Briefcase, href: '/servicios', module: 'osp', level: 'lectura' },
-      { title: 'Contratos', icon: FileText, href: '/contratos', module: 'osp', level: 'lectura' },
-      { title: 'Cursos', icon: FileText, href: '/cursos', module: 'osp', level: 'lectura' },
-      { title: 'Directivas', icon: FileText, href: '/directivas', module: 'osp', level: 'lectura' }
+      {
+        title: 'Servicios',
+        href: '/servicios',
+        icon: Briefcase,
+        module: 'osp',
+        level: 'lectura'
+      },
+      {
+        title: 'Contratos',
+        href: '/contratos',
+        icon: FileText,
+        module: 'osp',
+        level: 'lectura'
+      },
+      {
+        title: 'Cursos',
+        href: '/cursos',
+        icon: FileText,
+        module: 'osp',
+        level: 'lectura'
+      },
+      {
+        title: 'Directivas',
+        href: '/directivas',
+        icon: FileText,
+        module: 'osp',
+        level: 'lectura'
+      }
     ]
   },
   {
     title: 'Administración',
     icon: Settings,
     module: 'usuarios',
-    level: 'administracion',
     children: [
-      { title: 'Usuarios', icon: Users, href: '/usuarios', module: 'usuarios', level: 'administracion' },
-      { title: 'Roles', icon: Settings, href: '/roles', module: 'usuarios', level: 'administracion' }
+      {
+        title: 'Usuarios',
+        href: '/usuarios',
+        icon: User,
+        module: 'usuarios',
+        level: 'administracion'
+      },
+      {
+        title: 'Roles',
+        href: '/roles',
+        icon: Settings,
+        module: 'usuarios',
+        level: 'administracion'
+      }
     ]
   }
 ];
 
-export function Sidebar() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<string[]>(['RR.HH', 'Administradores', 'OSP']);
+interface SidebarProps {
+  className?: string;
+}
+
+export function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
-  const { user, logout, canRead, canAdmin } = useSharePointAuth();
+  const { user, logout, canRead } = useSharePointAuth();
+  const [expandedItems, setExpandedItems] = useState<string[]>(['RR.HH', 'Administradores', 'OSP']);
 
   const toggleExpanded = (title: string) => {
-    setExpandedItems(prev => 
-      prev.includes(title) 
+    setExpandedItems(prev =>
+      prev.includes(title)
         ? prev.filter(item => item !== title)
         : [...prev, title]
     );
   };
 
-  const hasPermission = (item: MenuItem): boolean => {
+  const isActive = (href: string) => {
+    return location.pathname === href;
+  };
+
+  const canAccessItem = (item: NavItem): boolean => {
     if (!item.module) return true;
-    
-    if (item.level === 'administracion') {
-      return canAdmin(item.module);
-    }
-    
     return canRead(item.module);
   };
 
-  const renderMenuItem = (item: MenuItem, depth = 0) => {
-    if (!hasPermission(item)) return null;
+  const renderNavItem = (item: NavItem, depth = 0) => {
+    if (!canAccessItem(item)) return null;
 
-    const isActive = item.href === location.pathname;
-    const isExpanded = expandedItems.includes(item.title);
-    const hasChildren = item.children && item.children.length > 0;
     const Icon = item.icon;
+    const hasChildren = item.children && item.children.length > 0;
+    const isExpanded = expandedItems.includes(item.title);
+    const accessibleChildren = item.children?.filter(canAccessItem) || [];
+
+    if (hasChildren && accessibleChildren.length === 0) return null;
 
     if (hasChildren) {
       return (
-        <div key={item.title}>
+        <div key={item.title} className="mb-1">
           <Button
             variant="ghost"
             className={cn(
-              "w-full justify-start text-left font-normal",
-              depth > 0 && "pl-8"
+              'w-full justify-start px-3 py-2.5 h-auto font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-lg transition-all duration-200',
+              depth > 0 && 'ml-4'
             )}
             onClick={() => toggleExpanded(item.title)}
           >
-            <Icon className="h-4 w-4 mr-2" />
-            <span className="flex-1">{item.title}</span>
+            <Icon className="mr-3 h-5 w-5 text-gray-600" />
+            <span className="flex-1 text-left text-sm">{item.title}</span>
             {isExpanded ? (
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-4 w-4 text-gray-500" />
             ) : (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 text-gray-500" />
             )}
           </Button>
           {isExpanded && (
-            <div className="ml-4 space-y-1">
-              {item.children.map(child => renderMenuItem(child, depth + 1))}
+            <div className="ml-6 mt-1 space-y-1 border-l-2 border-gray-200 pl-4">
+              {accessibleChildren.map(child => renderNavItem(child, depth + 1))}
             </div>
           )}
         </div>
@@ -140,94 +206,79 @@ export function Sidebar() {
     }
 
     return (
-      <Link key={item.title} to={item.href!}>
+      <Link key={item.title} to={item.href!} className="block mb-1">
         <Button
-          variant={isActive ? "secondary" : "ghost"}
+          variant={isActive(item.href!) ? 'default' : 'ghost'}
           className={cn(
-            "w-full justify-start text-left font-normal",
-            depth > 0 && "pl-8"
+            'w-full justify-start px-3 py-2.5 h-auto font-medium rounded-lg transition-all duration-200',
+            depth > 0 && 'ml-4',
+            isActive(item.href!) 
+              ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' 
+              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
           )}
         >
-          <Icon className="h-4 w-4 mr-2" />
-          {item.title}
+          <Icon className={cn(
+            'mr-3 h-5 w-5',
+            isActive(item.href!) ? 'text-white' : 'text-gray-600'
+          )} />
+          <span className="text-sm">{item.title}</span>
         </Button>
       </Link>
     );
   };
 
   return (
-    <>
-      {/* Mobile menu button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="fixed top-4 left-4 z-50 lg:hidden"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        {isOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-      </Button>
-
-      {/* Sidebar */}
-      <div className={cn(
-        "fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:inset-0",
-        isOpen ? "translate-x-0" : "-translate-x-full"
-      )}>
-        <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b">
+    <div className={cn('pb-12 min-h-screen bg-white border-r border-gray-200 shadow-sm', className)}>
+      <div className="space-y-6 py-6">
+        {/* Header */}
+        <div className="px-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg">
+              <Shield className="h-6 w-6 text-white" />
+            </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">SAM ERP</h2>
-              <Badge variant="outline" className="text-xs">
-                SharePoint
-              </Badge>
+              <h2 className="text-xl font-bold text-gray-900">SAM ERP</h2>
+              <p className="text-xs text-gray-500 font-medium">Sistema de Gestión</p>
             </div>
           </div>
-
-          {/* User info */}
+          
+          {/* User Info */}
           {user && (
-            <div className="p-4 border-b bg-gray-50">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                  {user.displayName?.charAt(0) || user.mail?.charAt(0) || 'U'}
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                  <User className="h-5 w-5 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {user.displayName || user.mail}
-                  </p>
-                  <p className="text-xs text-gray-500 truncate">
-                    {user.jobTitle || 'Usuario'}
-                  </p>
+                  <p className="text-sm font-semibold text-gray-900 truncate">{user.nombre}</p>
+                  <p className="text-xs text-gray-600 truncate">{user.rol_nombre}</p>
                 </div>
               </div>
             </div>
           )}
-
-          {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-            {menuItems.map(item => renderMenuItem(item))}
-          </nav>
-
-          {/* Footer */}
-          <div className="p-4 border-t">
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
-              onClick={logout}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Cerrar Sesión
-            </Button>
-          </div>
+        </div>
+        
+        {/* Navigation */}
+        <div className="px-4">
+          <ScrollArea className="h-[calc(100vh-280px)]">
+            <div className="space-y-1">
+              {navigation.map(item => renderNavItem(item))}
+            </div>
+          </ScrollArea>
+        </div>
+        
+        {/* Footer */}
+        <div className="px-6 pt-4 border-t border-gray-200">
+          <Button
+            variant="ghost"
+            className="w-full justify-start px-3 py-2.5 h-auto font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200"
+            onClick={logout}
+          >
+            <LogOut className="mr-3 h-5 w-5" />
+            <span className="text-sm">Cerrar Sesión</span>
+          </Button>
         </div>
       </div>
-
-      {/* Overlay for mobile */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-    </>
+    </div>
   );
 }
