@@ -1,16 +1,16 @@
 import { Configuration, PopupRequest } from '@azure/msal-browser';
 
-// Configuración de MSAL para Azure AD con tenant específico
+// MSAL configuration
 export const msalConfig: Configuration = {
   auth: {
-    clientId: '4523a41a-818e-4d92-8775-1ccf155e7327',
-    authority: 'https://login.microsoftonline.com/2f7e4660-def9-427d-9c23-603e4e4dae55', // Tenant específico de SAMERP
-    redirectUri: window.location.origin,
-    postLogoutRedirectUri: window.location.origin
+    clientId: import.meta.env.VITE_AZURE_CLIENT_ID || '4523a41a-818e-4d92-8775-1ccf155e7327',
+    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_AZURE_TENANT_ID || '2f7e4660-def9-427d-9c23-603e4e4dae55'}`,
+    redirectUri: import.meta.env.VITE_REDIRECT_URI || window.location.origin,
+    postLogoutRedirectUri: window.location.origin,
   },
   cache: {
     cacheLocation: 'sessionStorage',
-    storeAuthStateInCookie: false
+    storeAuthStateInCookie: false,
   },
   system: {
     loggerOptions: {
@@ -39,7 +39,7 @@ export const msalConfig: Configuration = {
   }
 };
 
-// Configuración de la solicitud de login
+// Add here scopes for id token to be used at MS Identity Platform endpoints.
 export const loginRequest: PopupRequest = {
   scopes: [
     'User.Read',
@@ -50,7 +50,7 @@ export const loginRequest: PopupRequest = {
   prompt: 'select_account'
 };
 
-// Configuración de endpoints de Microsoft Graph
+// Add here the endpoints for MS Graph API services you would like to use.
 export const graphConfig = {
   graphMeEndpoint: 'https://graph.microsoft.com/v1.0/me',
   graphSitesEndpoint: 'https://graph.microsoft.com/v1.0/sites'
