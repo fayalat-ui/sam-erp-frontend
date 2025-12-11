@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useAuth } from '@/contexts/AuthContext';
+import { useSharePointAuth } from '@/contexts/SharePointAuthContext';
 import { 
   LayoutDashboard, 
   Users, 
@@ -31,55 +31,55 @@ const menuItems = [
     title: 'Trabajadores',
     href: '/trabajadores',
     icon: Users,
-    module: 'trabajadores'
+    module: 'rrhh'
   },
   {
     title: 'Clientes',
     href: '/clientes',
     icon: Building2,
-    module: 'clientes'
+    module: 'administradores'
   },
   {
     title: 'Mandantes',
     href: '/mandantes',
     icon: UserCheck,
-    module: 'mandantes'
+    module: 'administradores'
   },
   {
     title: 'Servicios',
     href: '/servicios',
     icon: Briefcase,
-    module: 'servicios'
+    module: 'osp'
   },
   {
     title: 'Contratos',
     href: '/contratos',
     icon: FileText,
-    module: 'contratos'
+    module: 'osp'
   },
   {
     title: 'Cursos',
     href: '/cursos',
     icon: GraduationCap,
-    module: 'cursos'
+    module: 'osp'
   },
   {
     title: 'Vacaciones',
     href: '/vacaciones',
     icon: Calendar,
-    module: 'vacaciones'
+    module: 'rrhh'
   },
   {
     title: 'Directivas',
     href: '/directivas',
     icon: FileText,
-    module: 'directivas'
+    module: 'osp'
   },
   {
     title: 'Jornadas',
     href: '/jornadas',
     icon: Clock,
-    module: 'jornadas'
+    module: 'rrhh'
   },
   {
     title: 'Usuarios',
@@ -91,7 +91,7 @@ const menuItems = [
     title: 'Roles',
     href: '/roles',
     icon: Shield,
-    module: 'roles'
+    module: 'usuarios'
   }
 ];
 
@@ -101,13 +101,13 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const location = useLocation();
-  const { user, hasPermission } = useAuth();
+  const { user, canRead } = useSharePointAuth();
   const [collapsed, setCollapsed] = useState(false);
 
-  // Filtrar elementos del menú basado en permisos
+  // Filtrar elementos del menú basado en permisos de SharePoint
   const visibleMenuItems = menuItems.filter(item => {
     if (item.module === 'dashboard') return true; // Dashboard siempre visible
-    return hasPermission(item.module, 'read');
+    return canRead(item.module);
   });
 
   return (
