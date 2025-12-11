@@ -1,7 +1,12 @@
-// SharePoint List Names - Update these to match your actual SharePoint list names
+/**
+ * SharePoint list names and field mappings for SAM ERP (migrated to SharePoint).
+ * Ensure these names match your actual SharePoint lists. If any list name differs,
+ * update SHAREPOINT_LISTS accordingly.
+ */
+
 export const SHAREPOINT_LISTS = {
   TRABAJADORES: 'Trabajadores',
-  MANDANTES: 'Mandantes', 
+  MANDANTES: 'Mandantes',
   SERVICIOS: 'Servicios',
   CONTRATOS: 'Contratos',
   CURSOS: 'Cursos',
@@ -10,75 +15,135 @@ export const SHAREPOINT_LISTS = {
   DIRECTIVAS: 'Directivas',
   JORNADAS: 'Jornadas',
   VACACIONES: 'Vacaciones',
-  CLIENTES: 'Clientes'
+  CLIENTES: 'Clientes',
 } as const;
 
-// SharePoint Field Mappings - Map SharePoint internal field names to display names
+type Mapping = Record<string, string>;
+
+/**
+ * FIELD_MAPPINGS: Map SharePoint internal field names → app field names per list.
+ * Adjust keys to match your actual SharePoint column internal names.
+ * Common defaults:
+ * - Title: main text column
+ * - Email, Telefono, Direccion, Estado, RUT are typical custom columns
+ */
 export const FIELD_MAPPINGS = {
   TRABAJADORES: {
-    'Id': 'id',
-    'Title': 'nombre',
-    'Apellido': 'apellido',
-    'RUT': 'rut',
-    'Email': 'email',
-    'Telefono': 'telefono',
-    'FechaIngreso': 'fecha_ingreso',
-    'Estado': 'estado',
-    'Cargo': 'cargo',
-    'Departamento': 'departamento'
+    Id: 'id',
+    Title: 'nombre', // e.g., full name or first name
+    Apellido: 'apellido',
+    RUT: 'rut',
+    Email: 'email',
+    Telefono: 'telefono',
+    Cargo: 'cargo',
+    Departamento: 'departamento',
+    FechaIngreso: 'fecha_ingreso',
+    Estado: 'activo', // boolean or string
   },
   MANDANTES: {
-    'Id': 'id',
-    'Title': 'nombre',
-    'RUT': 'rut',
-    'Direccion': 'direccion',
-    'Telefono': 'telefono',
-    'Email': 'email',
-    'Estado': 'estado',
-    'FechaCreacion': 'fecha_creacion'
+    Id: 'id',
+    Title: 'nombre',
+    RUT: 'rut',
+    Direccion: 'direccion',
+    Telefono: 'telefono',
+    Email: 'email',
+    Estado: 'estado',
+    FechaCreacion: 'fecha_creacion',
+    Contacto: 'contacto',
   },
   SERVICIOS: {
-    'Id': 'id',
-    'Title': 'nombre',
-    'Descripcion': 'descripcion',
-    'Estado': 'estado',
-    'Precio': 'precio',
-    'Categoria': 'categoria'
+    Id: 'id',
+    Title: 'nombre',
+    Descripcion: 'descripcion',
+    Estado: 'estado',
+    Precio: 'precio',
+    Categoria: 'categoria',
+    Codigo: 'codigo',
+    Activo: 'activo',
   },
   CONTRATOS: {
-    'Id': 'id',
-    'Title': 'nombre',
-    'MandanteId': 'mandante_id',
-    'FechaInicio': 'fecha_inicio',
-    'FechaFin': 'fecha_fin',
-    'Estado': 'estado',
-    'Valor': 'valor'
+    Id: 'id',
+    Title: 'nombre',
+    MandanteId: 'mandante_id',
+    FechaInicio: 'fecha_inicio',
+    FechaFin: 'fecha_fin',
+    Estado: 'estado',
+    Valor: 'valor',
   },
   USUARIOS: {
-    'Id': 'id',
-    'Title': 'nombre',
-    'Email': 'email',
-    'Estado': 'estado',
-    'Rol': 'rol',
-    'FechaCreacion': 'fecha_creacion'
-  }
+    Id: 'id',
+    Title: 'nombre',
+    Email: 'email',
+    Estado: 'estado',
+    Rol: 'rol',
+    FechaCreacion: 'fecha_creacion',
+  },
+  CLIENTES: {
+    Id: 'id',
+    Title: 'razon_social',
+    RUT: 'rut',
+    NombreContacto: 'nombre_contacto',
+    Email: 'email',
+    Telefono: 'telefono',
+    Direccion: 'direccion',
+    Estado: 'estado',
+  },
+  VACACIONES: {
+    Id: 'id',
+    TrabajadorId: 'trabajador_id',
+    TrabajadorNombre: 'trabajador_nombre',
+    FechaInicio: 'fecha_inicio',
+    FechaFin: 'fecha_fin',
+    DiasSolicitados: 'dias_solicitados',
+    Estado: 'estado',
+    Observaciones: 'observaciones',
+  },
+  DIRECTIVAS: {
+    Id: 'id',
+    Title: 'titulo',
+    Descripcion: 'descripcion',
+    Numero: 'numero',
+    FechaEmision: 'fecha_emision',
+    Vigente: 'vigente',
+    Categoria: 'categoria',
+    ArchivoUrl: 'archivo_url',
+  },
 } as const;
 
-// Transform SharePoint data to application format
-export function transformSharePointData(listName: keyof typeof FIELD_MAPPINGS, items: any[]): any[] {
-  const mapping = FIELD_MAPPINGS[listName];
+type FieldMappings = typeof FIELD_MAPPINGS;
+type FieldMappingKey = keyof FieldMappings;
+
+type SPItemBase = {
+  id?: string | number;
+  fields?: Record<string, unknown>;
+} & Record<string, unknown>;
+
+/**
+ * Transform SharePoint items to app format using FIELD_MAPPINGS.
+ * listName: one of the FIELD_MAPPINGS keys (uppercase).
+ */
+export function transformSharePointData<K extends FieldMappingKey, T = Record<string, unknown>>(
+  listName: K,
+  items: SPItemBase[]
+): T[] {
+  const mapping: Mapping = FIELD_MAPPINGS[listName] as Mapping;
   if (!mapping || !items) return [];
 
-  return items.map(item => {
-    const transformed: any = {};
-    
-    // Transform fields based on mapping
+  return items.map((item) => {
+    const transformed: Record<string, unknown> = {};
+    const fields = (item?.fields ?? item) as Record<string, unknown>;
+
+    // Always include 'id'
+    transformed.id = (item?.id ??
+      (fields?.Id as string | number | undefined) ??
+      (fields?.ID as string | number | undefined)) as string | number | undefined;
+
     Object.entries(mapping).forEach(([spField, appField]) => {
-      if (item.fields && item.fields[spField] !== undefined) {
-        transformed[appField] = item.fields[spField];
+      if (fields && Object.prototype.hasOwnProperty.call(fields, spField)) {
+        transformed[appField] = fields[spField];
       }
     });
 
-    return transformed;
+    return transformed as T;
   });
 }

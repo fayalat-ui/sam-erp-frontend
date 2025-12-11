@@ -8,43 +8,50 @@ interface SharePointQueryOptions {
   top?: number;
 }
 
-class SharePointService {
+type SPItem = {
+  id?: string | number;
+  fields?: Record<string, unknown>;
+} & Record<string, unknown>;
+
+/**
+ * Generic SharePoint service bound to a list name.
+ * listName should match actual SharePoint list title (e.g., "Clientes").
+ */
+class SharePointService<T = Record<string, unknown>> {
   constructor(private listName: string) {}
 
-  async getAll(options: SharePointQueryOptions = {}) {
+  async getAll(options: SharePointQueryOptions = {}): Promise<T[]> {
     try {
-      const items = await sharePointClient.getListItems(
+      const items = (await sharePointClient.getListItems(
         this.listName,
         options.select,
-        options.filter
-      );
-      
-      // Transform data if mapping exists
-      const listKey = Object.keys(FIELD_MAPPINGS).find(
-        key => FIELD_MAPPINGS[key as keyof typeof FIELD_MAPPINGS]
-      );
-      
-      if (listKey && listKey in FIELD_MAPPINGS) {
-        return transformSharePointData(listKey as keyof typeof FIELD_MAPPINGS, items);
+        options.filter,
+        options.orderBy,
+        options.top
+      )) as SPItem[];
+
+      // Try to find a matching mapping key by case-insensitive comparison
+      const listKey = Object.keys(FIELD_MAPPINGS).find((key) => key.toLowerCase() === this.listName.toLowerCase());
+
+      if (listKey && (listKey as keyof typeof FIELD_MAPPINGS) in FIELD_MAPPINGS) {
+        return transformSharePointData(listKey as keyof typeof FIELD_MAPPINGS, items) as T[];
       }
-      
-      return items.map(item => ({
-        id: item.id,
-        ...item.fields
-      }));
+
+      // Fallback: flatten items to {id, ...fields}
+      return items.map((item: SPItem) => {
+        const id = item.id;
+        const fields = item.fields ?? {};
+        return { id, ...fields } as T;
+      });
     } catch (error) {
       console.error(`Error fetching data from ${this.listName}:`, error);
       throw error;
     }
   }
 
-  async getById(id: string) {
+  async getById(id: string): Promise<SPItem | null> {
     try {
-      const items = await sharePointClient.getListItems(
-        this.listName,
-        undefined,
-        `Id eq ${id}`
-      );
+      const items = (await sharePointClient.getListItems(this.listName, undefined, `Id eq ${id}`)) as SPItem[];
       return items[0] || null;
     } catch (error) {
       console.error(`Error fetching item ${id} from ${this.listName}:`, error);
@@ -52,7 +59,7 @@ class SharePointService {
     }
   }
 
-  async create(data: Record<string, any>) {
+  async create(data: Record<string, unknown>) {
     try {
       return await sharePointClient.createListItem(this.listName, data);
     } catch (error) {
@@ -61,7 +68,7 @@ class SharePointService {
     }
   }
 
-  async update(id: string, data: Record<string, any>) {
+  async update(id: string, data: Record<string, unknown>) {
     try {
       return await sharePointClient.updateListItem(this.listName, id, data);
     } catch (error) {
@@ -98,7 +105,7 @@ export async function checkSharePointConnection() {
   try {
     await sharePointClient.initializeSite();
     return { success: true, message: 'Conexión exitosa con SharePoint' };
-  } catch (error) {
+  } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
     return { success: false, message: `Error de conexión: ${errorMessage}` };
   }

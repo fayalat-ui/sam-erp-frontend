@@ -20,6 +20,9 @@ import Roles from './pages/Roles';
 import Directivas from './pages/Directivas';
 import Jornadas from './pages/Jornadas';
 
+import TestSharePoint from './pages/TestSharePoint';
+import MigrationNotice from './pages/_MigrationNotice';
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -31,75 +34,147 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } />
-            
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Diagnóstico SharePoint */}
+            <Route
+              path="/test-sharepoint"
+              element={
+                <ProtectedRoute module="usuarios" level="lectura">
+                  <TestSharePoint />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Módulo RR.HH */}
-            <Route path="/trabajadores" element={
-              <ProtectedRoute module="rrhh" level="lectura">
-                <Trabajadores />
-              </ProtectedRoute>
-            } />
-            <Route path="/vacaciones" element={
-              <ProtectedRoute module="rrhh" level="lectura">
-                <Vacaciones />
-              </ProtectedRoute>
-            } />
-            <Route path="/jornadas" element={
-              <ProtectedRoute module="rrhh" level="lectura">
-                <Jornadas />
-              </ProtectedRoute>
-            } />
-            
+            <Route
+              path="/trabajadores"
+              element={
+                <ProtectedRoute module="rrhh" level="lectura">
+                  <Trabajadores />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vacaciones"
+              element={
+                <ProtectedRoute module="rrhh" level="lectura">
+                  <Vacaciones />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/jornadas"
+              element={
+                <ProtectedRoute module="rrhh" level="lectura">
+                  <Jornadas />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Módulo Administradores */}
-            <Route path="/clientes" element={
-              <ProtectedRoute module="administradores" level="lectura">
-                <Clientes />
-              </ProtectedRoute>
-            } />
-            <Route path="/mandantes" element={
-              <ProtectedRoute module="administradores" level="lectura">
-                <Mandantes />
-              </ProtectedRoute>
-            } />
-            
+            <Route
+              path="/clientes"
+              element={
+                <ProtectedRoute module="administradores" level="lectura">
+                  <Clientes />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mandantes"
+              element={
+                <ProtectedRoute module="administradores" level="lectura">
+                  <Mandantes />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Módulo OSP */}
-            <Route path="/servicios" element={
-              <ProtectedRoute module="osp" level="lectura">
-                <Servicios />
-              </ProtectedRoute>
-            } />
-            <Route path="/contratos" element={
-              <ProtectedRoute module="osp" level="lectura">
-                <Contratos />
-              </ProtectedRoute>
-            } />
-            <Route path="/cursos" element={
-              <ProtectedRoute module="osp" level="lectura">
-                <Cursos />
-              </ProtectedRoute>
-            } />
-            <Route path="/directivas" element={
-              <ProtectedRoute module="osp" level="lectura">
-                <Directivas />
-              </ProtectedRoute>
-            } />
-            
+            <Route
+              path="/servicios"
+              element={
+                <ProtectedRoute module="osp" level="lectura">
+                  <Servicios />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/contratos"
+              element={
+                <ProtectedRoute module="osp" level="lectura">
+                  <Contratos />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/cursos"
+              element={
+                <ProtectedRoute module="osp" level="lectura">
+                  <Cursos />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/directivas"
+              element={
+                <ProtectedRoute module="osp" level="lectura">
+                  <Directivas />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Administración de Usuarios */}
-            <Route path="/usuarios" element={
-              <ProtectedRoute module="usuarios" level="administracion">
-                <Usuarios />
-              </ProtectedRoute>
-            } />
-            <Route path="/roles" element={
-              <ProtectedRoute module="usuarios" level="administracion">
-                <Roles />
-              </ProtectedRoute>
-            } />
-            
+            <Route
+              path="/usuarios"
+              element={
+                <ProtectedRoute module="usuarios" level="administracion">
+                  <Usuarios />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/roles"
+              element={
+                <ProtectedRoute module="usuarios" level="administracion">
+                  <Roles />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Placeholders para módulos en migración (si agregas rutas a proveedores/ventas/inventario) */}
+            <Route
+              path="/proveedores"
+              element={
+                <ProtectedRoute module="administradores" level="lectura">
+                  <MigrationNotice title="Proveedores en migración" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventario"
+              element={
+                <ProtectedRoute module="administradores" level="lectura">
+                  <MigrationNotice title="Inventario en migración" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ventas"
+              element={
+                <ProtectedRoute module="administradores" level="lectura">
+                  <MigrationNotice title="Ventas en migración" />
+                </ProtectedRoute>
+              }
+            />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
