@@ -29,7 +29,7 @@ type Cliente = {
 };
 
 export default function Clientes() {
-  const { canCollaborate, canAdministrate } = useSharePointAuth();
+  const { canWrite, canAdmin } = useSharePointAuth();
   const [searchTerm, setSearchTerm] = useState('');
 
   const {
@@ -46,8 +46,8 @@ export default function Clientes() {
     select: 'Id,Title,RUT,NombreContacto,Email,Telefono,Direccion,Estado',
   });
 
-  const canEdit = canCollaborate('administradores');
-  const canDelete = canAdministrate('administradores');
+  const canEdit = canWrite('administradores');
+  const canDelete = canAdmin('administradores');
 
   const filtered = (clientes ?? []).filter((c) => {
     const s = searchTerm.toLowerCase();
@@ -165,6 +165,7 @@ export default function Clientes() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => {
+                                  if (!remove) return;
                                   if (confirm('¿Eliminar cliente?')) {
                                     remove(c.id).catch((err: unknown) => {
                                       const msg = err instanceof Error ? err.message : String(err);

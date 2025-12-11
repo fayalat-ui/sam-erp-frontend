@@ -31,7 +31,7 @@ interface Servicio {
 }
 
 export default function Servicios() {
-  const { canCollaborate, canAdministrate } = useSharePointAuth();
+  const { canWrite, canAdmin } = useSharePointAuth();
   const [searchTerm, setSearchTerm] = useState('');
 
   const {
@@ -47,8 +47,8 @@ export default function Servicios() {
       'ID,NOMBRE,RUT_CLIENTE,TIPO_EMPRESA,EMPRESA,DIRECCION,UBICACION,ZONA,DOTACION,TELEFONO,RESPONSABLE,FECHA_INICIO,ESTADO,CODIGO_ZONA,CIUDAD,TIPO_JORNADA,ACTIVO_NUM,CIUDAD2,PAIS',
   });
 
-  const canEdit = canCollaborate('osp');
-  const canDelete = canAdministrate('osp');
+  const canEdit = canWrite('osp');
+  const canDelete = canAdmin('osp');
 
   const filteredServicios = (servicios ?? []).filter((servicio) => {
     const s = searchTerm.toLowerCase();
@@ -64,12 +64,10 @@ export default function Servicios() {
   });
 
   const handleCreate = async () => {
-    // TODO: Implementar modal de creación si lo apruebas
     console.log('Create servicio');
   };
 
   const handleEdit = async (servicio: Servicio) => {
-    // TODO: Implementar modal de edición si lo apruebas
     console.log('Edit servicio:', servicio);
   };
 

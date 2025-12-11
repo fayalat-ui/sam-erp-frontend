@@ -43,7 +43,7 @@ interface Trabajador {
 }
 
 export default function Trabajadores() {
-  const { canCollaborate, canAdministrate } = useSharePointAuth();
+  const { canWrite, canAdmin } = useSharePointAuth();
   const [searchTerm, setSearchTerm] = useState('');
 
   const {
@@ -59,8 +59,8 @@ export default function Trabajadores() {
       'ID,Title,Nombres,Apellidos,RUT,Nacimiento,Estado_Civil,Celular,Correo_Empresa,Telefono,Direccion,Ciudad_Pais,Ciudad_Estado,Ciudad_Nombre,Ciudad_Calle,Ciudad_CPostal,Ciudad_Coordenadas,Cargo,Tipo_Contrato,Sueldo_Base,AFP,Salud,Banco,Tipo_Cuenta,Numero_Cuenta,Fecha_Ingreso,FOTO_TRABAJADOR_,DOC_CURSO,ESTADO_,Notas',
   });
 
-  const canEdit = canCollaborate('rrhh');
-  const canDelete = canAdministrate('rrhh');
+  const canEdit = canWrite('rrhh');
+  const canDelete = canAdmin('rrhh');
 
   const filtered = (trabajadores ?? []).filter((t) => {
     const s = searchTerm.toLowerCase();
@@ -74,12 +74,10 @@ export default function Trabajadores() {
   });
 
   const handleCreate = async () => {
-    // TODO: modal de creación si lo apruebas
     console.log('Create trabajador');
   };
 
   const handleEdit = async (trabajador: Trabajador) => {
-    // TODO: modal de edición si lo apruebas
     console.log('Edit trabajador:', trabajador);
   };
 
