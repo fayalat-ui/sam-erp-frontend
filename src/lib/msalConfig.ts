@@ -1,15 +1,27 @@
 import { Configuration, PopupRequest } from "@azure/msal-browser";
 
+/**
+ * MSAL configuration driven by environment variables.
+ * Required env vars (set in Netlify and local .env):
+ * - VITE_AZURE_CLIENT_ID
+ * - VITE_AZURE_TENANT_ID
+ * - VITE_REDIRECT_URI
+ */
+const clientId = import.meta.env.VITE_AZURE_CLIENT_ID || "4523a41a-818e-4d92-8775-1ccf155e7327";
+const tenantId = import.meta.env.VITE_AZURE_TENANT_ID || "2f7e4660-def9-427d-9c23-603e4e4dae55";
+const redirectUri = import.meta.env.VITE_REDIRECT_URI || "https://samerp.cl";
+const authority = `https://login.microsoftonline.com/${tenantId}`;
+
 // MSAL configuration
 export const msalConfig: Configuration = {
   auth: {
-    clientId: "4523a41a-818e-4d92-8775-1ccf155e7327", // Application (client) ID from Azure portal
-    authority: "https://login.microsoftonline.com/2f7e4660-def9-427d-9c23-603e4e4dae55", // Directory (tenant) ID
-    redirectUri: "https://samerp.cl", // Must be registered as a redirect URI in Azure portal
+    clientId,
+    authority,
+    redirectUri,
   },
   cache: {
-    cacheLocation: "sessionStorage", // This configures where your cache will be stored
-    storeAuthStateInCookie: false, // Set this to "true" if you are having issues on IE11 or Edge
+    cacheLocation: "sessionStorage",
+    storeAuthStateInCookie: false,
   },
 };
 
@@ -27,7 +39,7 @@ export const loginRequest: PopupRequest = {
     "Calendars.Read",
     "Mail.Read",
     "Tasks.Read",
-    "Notes.Read.All"
+    "Notes.Read.All",
   ],
 };
 
