@@ -74,7 +74,7 @@ export const FIELD_MAPPINGS = {
     Author: 'author',
     Editor: 'editor',
   },
-  // Mapeo real de TBL_SERVICIOS
+  // SERVICIOS: ajustado exactamente a los campos provistos por el usuario
   SERVICIOS: {
     ID: 'id',
     NOMBRE: 'nombre',
@@ -82,25 +82,15 @@ export const FIELD_MAPPINGS = {
     TIPO_EMPRESA: 'tipo_empresa',
     EMPRESA: 'empresa',
     DIRECCION: 'direccion',
-    UBICACION: 'ubicacion', // json estructurado
+    UBICACION: 'ubicacion',
     ZONA: 'zona',
     DOTACION: 'dotacion',
     TELEFONO: 'telefono',
     RESPONSABLE: 'responsable',
-    FECHA_INICIO: 'fecha_inicio_raw', // guardamos texto crudo
+    FECHA_INICIO: 'fecha_inicio',
+    FECHA_TERMINO: 'fecha_termino',
+    // Nota: Si existe la columna ESTADO en SharePoint, mantener compatibilidad:
     ESTADO: 'estado',
-    CODIGO_ZONA: 'codigo_zona',
-    CIUDAD: 'ciudad',
-    EMPRESA_CONTRATISTA: 'empresa_contratista',
-    RUT_EMPRESA: 'rut_empresa',
-    TIPO_JORNADA: 'tipo_jornada',
-    COL19: 'col19',
-    COL20: 'col20',
-    ACTIVO_NUM: 'activo_num', // integer (0 habitual)
-    CALLE: 'calle',
-    CIUDAD2: 'ciudad2',
-    PAIS: 'pais',
-    GEOM: 'geom', // texto: "Point (lon lat)"; si se activa PostGIS, cambiar tipo
   },
   CONTRATOS: {
     Id: 'id',
