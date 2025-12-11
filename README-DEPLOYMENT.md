@@ -1,90 +1,82 @@
-# SAM ERP - Guía de Despliegue en Netlify
+# SAM ERP - Despliegue en Producción
 
-## 🚀 Despliegue Automático
+## 🚀 Configuración de Producción
 
-### Paso 1: Conectar con Netlify
-1. Ve a [netlify.com](https://netlify.com) e inicia sesión
-2. Haz clic en "New site from Git"
-3. Conecta tu repositorio de GitHub/GitLab
-4. Selecciona la rama `main` o `master`
+### 1. Configuración Azure AD (CRÍTICO)
+En Azure Portal → App Registrations → tu aplicación, configura estas URLs de redirección:
 
-### Paso 2: Configuración de Build
-- **Build command**: `pnpm run build`
-- **Publish directory**: `dist`
-- **Node version**: `18`
+**URLs de Redirección Requeridas:**
+- `https://samerp.cl` (producción principal)
+- `https://www.samerp.cl` (con www)
+- `https://deploy-preview-*--samerp.netlify.app` (previews de Netlify)
 
-### Paso 3: Variables de Entorno (CRÍTICO)
-En Netlify Dashboard → Site Settings → Environment Variables, añade:
+### 2. Variables de Entorno en Netlify
+Configura estas variables en Netlify Dashboard > Site Settings > Environment Variables:
 
 ```
 VITE_AZURE_CLIENT_ID=4523a41a-818e-4d92-8775-1ccf155e7327
 VITE_AZURE_TENANT_ID=2f7e4660-def9-427d-9c23-603e4e4dae55
-VITE_REDIRECT_URI=https://tu-sitio.netlify.app
+VITE_REDIRECT_URI=https://samerp.cl
 VITE_SHAREPOINT_SITE_URL=https://seguryservicios.sharepoint.com
 VITE_SHAREPOINT_SITE_ID=/sites/root
 ```
 
-### Paso 4: Configurar Azure AD
-En Azure Portal → App Registrations → tu app:
+### 3. Configuración de Dominio en Netlify
+- Ve a Netlify Dashboard > Domain Settings
+- Añade dominio personalizado: `samerp.cl`
+- Configura DNS para apuntar a Netlify
+- Habilita HTTPS automático
 
-1. **Redirect URIs**: Añadir `https://tu-sitio.netlify.app`
-2. **Implicit grant**: Habilitar "Access tokens" y "ID tokens"
-3. **API permissions**: Verificar permisos de Microsoft Graph:
-   - User.Read
-   - Sites.Read.All
-   - Sites.ReadWrite.All
-   - Files.ReadWrite.All
+### 4. Comandos de Despliegue
+```bash
+# Build para producción
+pnpm run build
 
-## 🔧 Verificación Post-Despliegue
+# Preview local
+pnpm run preview
+```
 
-### Checklist de Funcionalidad
-- [ ] Login con Azure AD funciona
-- [ ] Conexión a SharePoint exitosa
-- [ ] Carga de datos desde listas SharePoint
-- [ ] Permisos por módulo funcionando
-- [ ] CRUD operations en todas las listas
+### 5. Verificación de Datos SharePoint
+- Ruta: `/test-data` - Prueba completa de todas las listas
+- Ruta: `/test-sharepoint` - Prueba básica de conexión
 
-### URLs de Prueba
-- `/login` - Página de autenticación
-- `/test-sharepoint` - Verificar conexión SharePoint
-- `/trabajadores` - Módulo RR.HH
-- `/mandantes` - Módulo Administradores
-- `/servicios` - Módulo OSP
+### 6. Permisos SharePoint Requeridos
+En Azure AD App Registration > API Permissions:
+- User.Read
+- Sites.Read.All
+- Sites.ReadWrite.All  
+- Files.ReadWrite.All
 
-## 🛠️ Troubleshooting
+### 7. Listas SharePoint Mapeadas
+- TBL_TRABAJADORES → Módulo RR.HH
+- Tbl_Mandantes → Módulo Administradores
+- TBL_SERVICIOS → Módulo OSP
+- TBL_VACACIONES → Módulo RR.HH
+- TBL_DIRECTIVAS → Módulo OSP
+- TBL_USUARIOS → Administración
 
-### Error: CORS
-Si aparecen errores CORS, verificar:
-1. Redirect URI en Azure AD
-2. Content Security Policy en netlify.toml
-3. Permisos de SharePoint
+## 🔧 Troubleshooting
 
-### Error: Authentication
-1. Verificar variables de entorno en Netlify
-2. Comprobar Tenant ID y Client ID
-3. Revisar permisos de Azure AD
+### Error AADSTS50011 (Redirect URI Mismatch)
+**Solución:** Verificar que en Azure AD estén configuradas estas URLs:
+- https://samerp.cl
+- https://www.samerp.cl
 
-### Error: SharePoint Access
-1. Verificar permisos de Microsoft Graph
-2. Comprobar URL del sitio SharePoint
-3. Validar nombres de listas SharePoint
+### Error de Tenant ID
+Verificar que el tenant ID coincida con tu organización Azure AD.
 
-## 📋 Listas SharePoint Requeridas
+### Error de Permisos SharePoint
+Asegurar que la app tenga permisos admin consent en Azure AD.
 
-El sistema espera estas listas en SharePoint:
-- `Tbl_Mandantes` (Módulo Administradores)
-- `TBL_PRESUPUESTO` (Módulo Administradores)
-- `TBL_JORNADAS` (Módulo RR.HH)
-- `TBL_TRABAJADORES` (Módulo RR.HH)
-- `SOLICITUD_CONTRATOS` (Módulo RR.HH)
-- `TBL_VACACIONES` (Módulo RR.HH)
-- `TBL_SERVICIOS` (Módulo OSP)
-- `TBL_REGISTRO_CURSO_OS10` (Módulo OSP)
-- `TBL_DIRECTIVAS` (Módulo OSP)
+### Error de CORS
+Verificar que las URLs de redirección estén configuradas correctamente en Azure AD.
 
-## 🔐 Seguridad
+## 📋 Checklist de Despliegue
 
-- Todas las variables de entorno están configuradas como `VITE_*` para el frontend
-- Azure AD maneja la autenticación
-- SharePoint controla el acceso a datos
-- Permisos granulares por módulo implementados
+- [ ] Configurar URLs de redirección en Azure AD
+- [ ] Configurar variables de entorno en Netlify
+- [ ] Configurar dominio personalizado samerp.cl
+- [ ] Probar login en `/login`
+- [ ] Verificar conexión SharePoint en `/test-data`
+- [ ] Probar módulos: trabajadores, mandantes, servicios
+- [ ] Verificar permisos por rol de usuario

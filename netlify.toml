@@ -13,14 +13,14 @@
 [context.production.environment]
   VITE_AZURE_CLIENT_ID = "4523a41a-818e-4d92-8775-1ccf155e7327"
   VITE_AZURE_TENANT_ID = "2f7e4660-def9-427d-9c23-603e4e4dae55"
-  VITE_REDIRECT_URI = "https://samerp.netlify.app"
+  VITE_REDIRECT_URI = "https://samerp.cl"
   VITE_SHAREPOINT_SITE_URL = "https://seguryservicios.sharepoint.com"
   VITE_SHAREPOINT_SITE_ID = "/sites/root"
 
 [context.deploy-preview.environment]
   VITE_AZURE_CLIENT_ID = "4523a41a-818e-4d92-8775-1ccf155e7327"
   VITE_AZURE_TENANT_ID = "2f7e4660-def9-427d-9c23-603e4e4dae55"
-  VITE_REDIRECT_URI = "https://deploy-preview-{REVIEW_ID}--samerp.netlify.app"
+  VITE_REDIRECT_URI = "https://deploy-preview-{{REVIEW_ID}}--samerp.netlify.app"
   VITE_SHAREPOINT_SITE_URL = "https://seguryservicios.sharepoint.com"
   VITE_SHAREPOINT_SITE_ID = "/sites/root"
 
