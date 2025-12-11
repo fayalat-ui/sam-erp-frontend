@@ -18,8 +18,11 @@ Archivos clave:
 - src/lib/msalConfig.ts (parametrizado por env)
 - src/contexts/SharePointAuthContext.tsx (gestión de sesión y permisos básicos)
 
-Scopes solicitados (loginRequest):
-User.Read, Sites.Read.All, Sites.ReadWrite.All, Files.Read.All, Files.ReadWrite.All, Group.Read.All, Directory.Read.All, User.ReadBasic.All, Calendars.Read, Mail.Read, Tasks.Read, Notes.Read.All
+Scopes solicitados:
+- Por defecto: `User.Read`, `Sites.Read.All`
+- Puedes personalizar los scopes con `VITE_AZURE_SCOPES` (separados por coma o espacios), por ejemplo:
+  - `User.Read,Sites.Read.All,Sites.ReadWrite.All`
+  - Nota: Scopes ampliados pueden requerir consentimiento de administrador.
 
 ## 3. Conexión a SharePoint (API)
 
@@ -55,10 +58,15 @@ Rutas principales (protegidas según módulo):
 
 Crea un archivo `.env` basado en `.env.example`:
 
+General
+- REACT_APP_GITHUB_REPO (opcional, URL del repo GitHub)
+
 Azure AD / MSAL
 - VITE_AZURE_CLIENT_ID
 - VITE_AZURE_TENANT_ID
-- VITE_REDIRECT_URI (ej. https://samerp.cl o URL de Netlify)
+- VITE_AZURE_REDIRECT_URI (recomendado; debe coincidir EXACTAMENTE con el Redirect URI registrado en Azure, por ejemplo `https://samerp.cl/login`)
+- VITE_REDIRECT_URI (fallback si no defines el anterior)
+- VITE_AZURE_SCOPES (p. ej., `User.Read,Sites.Read.All`)
 
 SharePoint
 - VITE_SHAREPOINT_SITE_ID (recomendado) o:
@@ -91,7 +99,7 @@ Opción A (recomendada): desde la UI
 - Publish directory: `dist`
 - Node: 18 (también definido en netlify.toml)
 - Configura variables de entorno (sección 6)
-- Si usarás samerp.cl, configura custom domain en Netlify y añade `https://samerp.cl` como Redirect URI en Azure
+- Si usarás samerp.cl, configura custom domain en Netlify y añade `https://samerp.cl/login` (o el que definas) como Redirect URI en Azure
 
 Opción B (CLI): requiere NETLIFY_AUTH_TOKEN y SITE_ID.
 
@@ -102,8 +110,19 @@ El proyecto incluye `netlify.toml` con redirect para SPA (/* → /index.html).
 - No commitear `.env` ni credenciales.
 - Registrar siempre el Redirect URI exacto en Azure (coincidente con el dominio real).
 - Usar IDs de listas en producción para mayor robustez.
+- Evita poner tokens en la URL del remoto Git; utiliza SSH o GitHub CLI.
 
-## 10. Roadmap sugerido
+## 10. Pasos en Azure para evitar AADSTS50011
+
+1) Azure Portal → Azure Active Directory → App registrations → tu app (`4523a41a-818e-4d92-8775-1ccf155e7327`) → Authentication.
+2) En “Single-page application (SPA)”, agrega:
+   - Producción: `https://samerp.cl/login` (recomendado)
+   - Netlify (si usas dominio temporal): `https://<tu-sitio>.netlify.app/login`
+   - Desarrollo local: `http://localhost:5173/login`
+3) Guarda cambios y espera propagación (puede tardar algunos minutos).
+4) Asegúrate de que `VITE_AZURE_REDIRECT_URI` en Netlify coincide EXACTAMENTE con uno de los URIs registrados.
+
+## 11. Roadmap sugerido
 
 - Filtros/orden estable por módulo (ej.: estado=Activo, ordenar por nombre ASC).
 - Mejorar vistas detalle y paginación.
