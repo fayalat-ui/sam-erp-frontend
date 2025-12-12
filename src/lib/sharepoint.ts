@@ -1,35 +1,61 @@
-import { Client } from '@microsoft/microsoft-graph-client';
-import { AuthenticationProvider } from '@microsoft/microsoft-graph-client';
-import { PublicClientApplication } from '@azure/msal-browser';
-import { msalConfig, loginRequest } from './msalConfig';
+import { Client } from "@microsoft/microsoft-graph-client";
+import type { AuthenticationProvider } from "@microsoft/microsoft-graph-client";
+import { PublicClientApplication } from "@azure/msal-browser";
+import { msalConfig, loginRequest } from "./msalConfig";
 
 // Helpers to read environment variables for SharePoint configuration.
 const SP_SITE_ID = import.meta.env.VITE_SHAREPOINT_SITE_ID as string | undefined;
-const SP_HOSTNAME = (import.meta.env.VITE_SHAREPOINT_HOSTNAME as string | undefined) || 'seguryservicios.sharepoint.com';
-const SP_SITE_PATH = (import.meta.env.VITE_SHAREPOINT_SITE_PATH as string | undefined) || '/';
+const SP_HOSTNAME =
+  (import.meta.env.VITE_SHAREPOINT_HOSTNAME as string | undefined) ||
+  "seguryservicios.sharepoint.com";
+const SP_SITE_PATH =
+  (import.meta.env.VITE_SHAREPOINT_SITE_PATH as string | undefined) || "/";
 
 // Optional list IDs via environment variables (preferred in production)
 const ENV_LIST_IDS: Record<string, string | undefined> = {
-  TBL_TRABAJADORES: import.meta.env.VITE_SP_LIST_TRABAJADORES_ID as string | undefined,
-  TBL_CLIENTES: import.meta.env.VITE_SP_LIST_CLIENTES_ID as string | undefined,
-  TBL_SERVICIOS: import.meta.env.VITE_SP_LIST_SERVICIOS_ID as string | undefined,
-  MANDANTES: import.meta.env.VITE_SP_LIST_MANDANTES_ID as string | undefined,
-  VACACIONES: import.meta.env.VITE_SP_LIST_VACACIONES_ID as string | undefined,
-  DIRECTIVAS: import.meta.env.VITE_SP_LIST_DIRECTIVAS_ID as string | undefined,
+  TBL_TRABAJADORES: import.meta.env.VITE_SP_LIST_TRABAJADORES_ID as
+    | string
+    | undefined,
+  TBL_CLIENTES: import.meta.env.VITE_SP_LIST_CLIENTES_ID as
+    | string
+    | undefined,
+  TBL_SERVICIOS: import.meta.env.VITE_SP_LIST_SERVICIOS_ID as
+    | string
+    | undefined,
+  MANDANTES: import.meta.env.VITE_SP_LIST_MANDANTES_ID as
+    | string
+    | undefined,
+  VACACIONES: import.meta.env.VITE_SP_LIST_VACACIONES_ID as
+    | string
+    | undefined,
+  DIRECTIVAS: import.meta.env.VITE_SP_LIST_DIRECTIVAS_ID as
+    | string
+    | undefined,
 };
 
 // Custom authentication provider for Microsoft Graph
 class MsalAuthProvider implements AuthenticationProvider {
   private msalInstance: PublicClientApplication;
+  private initializedPromise: Promise<void> | null = null;
 
   constructor() {
     this.msalInstance = new PublicClientApplication(msalConfig);
   }
 
-  async getAccessToken(): Promise<string> {
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initializedPromise) {
+      this.initializedPromise = this.msalInstance.initialize();
+    }
+    await this.initializedPromise;
+  }
+
+  public async getAccessToken(): Promise<string> {
+    // 💡 AQUÍ se asegura que MSAL esté inicializado
+    await this.ensureInitialized();
+
     const accounts = this.msalInstance.getAllAccounts();
     if (accounts.length === 0) {
-      throw new Error('No authenticated user found');
+      throw new Error("No authenticated user found");
     }
 
     try {
@@ -39,13 +65,13 @@ class MsalAuthProvider implements AuthenticationProvider {
       });
       return response.accessToken;
     } catch (error) {
-      console.error('Silent token acquisition failed:', error);
+      console.error("Silent token acquisition failed, trying interactive:", error);
       try {
         const response = await this.msalInstance.acquireTokenPopup(loginRequest);
         return response.accessToken;
       } catch (interactiveError) {
-        console.error('Interactive token acquisition failed:', interactiveError);
-        throw new Error('Failed to acquire access token');
+        console.error("Interactive token acquisition failed:", interactiveError);
+        throw new Error("Failed to acquire access token");
       }
     }
   }
@@ -53,7 +79,7 @@ class MsalAuthProvider implements AuthenticationProvider {
 
 class SharePointClient {
   private graphClient: Client;
-  private siteId: string = '';
+  private siteId = "";
   private authProvider: MsalAuthProvider;
   private listIdCache = new Map<string, string>();
 
@@ -75,22 +101,30 @@ class SharePointClient {
       if (SP_SITE_ID) {
         const site = await this.graphClient.api(`/sites/${SP_SITE_ID}`).get();
         this.siteId = site.id;
-        console.log('SharePoint site initialized by ID:', site.displayName || site.id);
+        console.log(
+          "SharePoint site initialized by ID:",
+          site.displayName || site.id
+        );
         return site;
       }
 
-      const site = await this.graphClient.api(`/sites/${SP_HOSTNAME}:${SP_SITE_PATH}`).get();
+      const site = await this.graphClient
+        .api(`/sites/${SP_HOSTNAME}:${SP_SITE_PATH}`)
+        .get();
       this.siteId = site.id;
-      console.log('SharePoint site initialized by host/path:', site.displayName);
+      console.log(
+        "SharePoint site initialized by host/path:",
+        site.displayName
+      );
       return site;
     } catch (error) {
-      console.error('Error initializing SharePoint site:', error);
+      console.error("Error initializing SharePoint site:", error);
       throw error;
     }
   }
 
   private async resolveListId(nameOrId: string): Promise<string> {
-    if (!nameOrId) throw new Error('List identifier is required');
+    if (!nameOrId) throw new Error("List identifier is required");
 
     // If passed an ID
     if (this.isGuid(nameOrId)) return nameOrId;
@@ -118,6 +152,7 @@ class SharePointClient {
     if (!list?.id) {
       throw new Error(`List not found by displayName: ${nameOrId}`);
     }
+
     this.listIdCache.set(nameOrId, list.id);
     return list.id;
   }
@@ -141,16 +176,16 @@ class SharePointClient {
       const listId = await this.resolveListId(listNameOrId);
 
       // Build expand for fields selection
-      let expandArg = 'fields';
-      if (select && typeof select === 'string') {
+      let expandArg = "fields";
+      if (select && typeof select === "string") {
         const fieldNames = select
-          .split(',')
+          .split(",")
           .map((s) => s.trim())
           // Exclude ID/id from fields selection; 'id' is top-level on listItem
-          .filter((s) => s.toLowerCase() !== 'id' && s.length > 0);
+          .filter((s) => s.toLowerCase() !== "id" && s.length > 0);
 
         if (fieldNames.length > 0) {
-          expandArg = `fields($select=${fieldNames.join(',')})`;
+          expandArg = `fields($select=${fieldNames.join(",")})`;
         }
       }
 
@@ -158,7 +193,6 @@ class SharePointClient {
         .api(`/sites/${this.siteId}/lists/${listId}/items`)
         .expand(expandArg);
 
-      // Only apply filter/orderby/top for valid inputs
       if (filter && filter.trim().length > 0) {
         query = query.filter(filter);
       }
@@ -170,43 +204,52 @@ class SharePointClient {
       }
 
       const response = await query.get();
-      return response.value || [];
+      return (response.value as SharePointListItem[]) || [];
     } catch (error) {
       console.error(`Error getting list items from ${listNameOrId}:`, error);
       throw error;
     }
   }
 
-  async createListItem(listNameOrId: string, fields: Record<string, unknown>): Promise<SharePointListItem> {
+  async createListItem(
+    listNameOrId: string,
+    fields: Record<string, unknown>
+  ): Promise<SharePointListItem> {
     try {
       if (!this.siteId) {
         await this.initializeSite();
       }
+
       const listId = await this.resolveListId(listNameOrId);
 
-      const response = await this.graphClient.api(`/sites/${this.siteId}/lists/${listId}/items`).post({
-        fields: fields,
-      });
+      const response = await this.graphClient
+        .api(`/sites/${this.siteId}/lists/${listId}/items`)
+        .post({ fields });
 
-      return response;
+      return response as SharePointListItem;
     } catch (error) {
       console.error(`Error creating item in ${listNameOrId}:`, error);
       throw error;
     }
   }
 
-  async updateListItem(listNameOrId: string, itemId: string, fields: Record<string, unknown>): Promise<SharePointListItem> {
+  async updateListItem(
+    listNameOrId: string,
+    itemId: string,
+    fields: Record<string, unknown>
+  ): Promise<SharePointListItem> {
     try {
       if (!this.siteId) {
         await this.initializeSite();
       }
+
       const listId = await this.resolveListId(listNameOrId);
 
       const response = await this.graphClient
         .api(`/sites/${this.siteId}/lists/${listId}/items/${itemId}/fields`)
         .patch(fields);
 
-      return response;
+      return response as SharePointListItem;
     } catch (error) {
       console.error(`Error updating item in ${listNameOrId}:`, error);
       throw error;
@@ -218,26 +261,35 @@ class SharePointClient {
       if (!this.siteId) {
         await this.initializeSite();
       }
+
       const listId = await this.resolveListId(listNameOrId);
 
-      await this.graphClient.api(`/sites/${this.siteId}/lists/${listId}/items/${itemId}`).delete();
+      await this.graphClient
+        .api(`/sites/${this.siteId}/lists/${listId}/items/${itemId}`)
+        .delete();
     } catch (error) {
       console.error(`Error deleting item from ${listNameOrId}:`, error);
       throw error;
     }
   }
 
-  async uploadFile(libraryName: string, fileName: string, fileContent: Blob): Promise<DriveItem> {
+  async uploadFile(
+    libraryName: string,
+    fileName: string,
+    fileContent: Blob
+  ): Promise<DriveItem> {
     try {
       if (!this.siteId) {
         await this.initializeSite();
       }
 
       const response = await this.graphClient
-        .api(`/sites/${this.siteId}/drive/root:/${libraryName}/${fileName}:/content`)
+        .api(
+          `/sites/${this.siteId}/drive/root:/${libraryName}/${fileName}:/content`
+        )
         .put(fileContent);
 
-      return response;
+      return response as DriveItem;
     } catch (error) {
       console.error(`Error uploading file to ${libraryName}:`, error);
       throw error;
@@ -263,12 +315,19 @@ interface DriveItem {
 export const sharePointClient = new SharePointClient();
 
 // Export function to check connection
-export async function checkSharePointConnection(): Promise<{ success: boolean; message: string }> {
+export async function checkSharePointConnection(): Promise<{
+  success: boolean;
+  message: string;
+}> {
   try {
     await sharePointClient.initializeSite();
-    return { success: true, message: 'Conexión exitosa con SharePoint' };
+    return { success: true, message: "Conexión exitosa con SharePoint" };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-    return { success: false, message: `Error de conexión: ${errorMessage}` };
+    const errorMessage =
+      error instanceof Error ? error.message : "Error desconocido";
+    return {
+      success: false,
+      message: `Error de conexión: ${errorMessage}`,
+    };
   }
 }
