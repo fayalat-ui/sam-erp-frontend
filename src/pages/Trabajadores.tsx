@@ -1,13 +1,12 @@
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { useSharePointAuth } from '@/contexts/SharePointAuthContext';
-import { useSharePointData } from '@/hooks/useSharePointData';
-import { trabajadoresService } from '@/lib/sharepoint-services';
-import { SHAREPOINT_LISTS } from '@/lib/sharepoint-mappings';
-import { Plus, Search, Edit, Trash2, Users } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { useSharePointAuth } from "@/contexts/SharePointAuthContext";
+import { getTrabajadores } from "@/services/sharepointService";
+import { sharePointClient } from "@/lib/sharepoint";
+import { Plus, Search, Edit, Trash2, Users } from "lucide-react";
 
 interface Trabajador {
   id: string | number;
@@ -44,51 +43,113 @@ interface Trabajador {
 
 export default function Trabajadores() {
   const { canWrite, canAdmin } = useSharePointAuth();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [trabajadores, setTrabajadores] = useState<Trabajador[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const {
-    data: trabajadores,
-    loading,
-    error,
-    refetch,
-    remove,
-  } = useSharePointData<Trabajador>(trabajadoresService, {
-    listName: SHAREPOINT_LISTS.TRABAJADORES,
-    // Seleccionar columnas internas provistas por TBL_TRABAJADORES
-    select:
-      'ID,Title,Nombres,Apellidos,RUT,Nacimiento,Estado_Civil,Celular,Correo_Empresa,Telefono,Direccion,Ciudad_Pais,Ciudad_Estado,Ciudad_Nombre,Ciudad_Calle,Ciudad_CPostal,Ciudad_Coordenadas,Cargo,Tipo_Contrato,Sueldo_Base,AFP,Salud,Banco,Tipo_Cuenta,Numero_Cuenta,Fecha_Ingreso,FOTO_TRABAJADOR_,DOC_CURSO,ESTADO_,Notas',
-  });
+  const canEdit = canWrite("rrhh");
+  const canDelete = canAdmin("rrhh");
 
-  const canEdit = canWrite('rrhh');
-  const canDelete = canAdmin('rrhh');
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // getTrabajadores() devuelve items de Graph: { id, fields: { ... } }
+      const items = await getTrabajadores();
+
+      const mapped: Trabajador[] = items.map((item: any) => {
+        const f = item.fields || {};
+        return {
+          id: item.id,
+          title: f.Title,
+          nombres: f.Nombres,
+          apellidos: f.Apellidos,
+          rut: f.RUT,
+          nacimiento: f.Nacimiento,
+          estado_civil: f.Estado_Civil,
+          celular: f.Celular,
+          correo_empresa: f.Correo_Empresa,
+          telefono: f.Telefono,
+          direccion: f.Direccion,
+          ciudad_pais: f.Ciudad_Pais,
+          ciudad_estado: f.Ciudad_Estado,
+          ciudad_nombre: f.Ciudad_Nombre,
+          ciudad_calle: f.Ciudad_Calle,
+          ciudad_cpostal: f.Ciudad_CPostal,
+          ciudad_coordenadas: f.Ciudad_Coordenadas,
+          cargo: f.Cargo,
+          tipo_contrato: f.Tipo_Contrato,
+          sueldo_base:
+            typeof f.Sueldo_Base === "number"
+              ? (f.Sueldo_Base as number)
+              : undefined,
+          afp: f.AFP,
+          salud: f.Salud,
+          banco: f.Banco,
+          tipo_cuenta: f.Tipo_Cuenta,
+          numero_cuenta: f.Numero_Cuenta,
+          fecha_ingreso: f.Fecha_Ingreso,
+          foto_trabajador: f.FOTO_TRABAJADOR_,
+          doc_curso: f.DOC_CURSO,
+          estado: f.ESTADO_ || f.Estado,
+          notas: f.Notas,
+        };
+      });
+
+      setTrabajadores(mapped);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Error desconocido al cargar datos";
+      console.error("Error cargando trabajadores:", err);
+      setError(msg);
+      setTrabajadores([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const filtered = (trabajadores ?? []).filter((t) => {
     const s = searchTerm.toLowerCase();
-    const nombreCompleto = `${t.nombres ?? ''} ${t.apellidos ?? ''}`.trim();
+    const nombreCompleto = `${t.nombres ?? ""} ${t.apellidos ?? ""}`.trim();
     return (
       nombreCompleto.toLowerCase().includes(s) ||
-      (t.rut ?? '').toLowerCase().includes(s) ||
-      (t.cargo ?? '').toLowerCase().includes(s) ||
-      (t.correo_empresa ?? '').toLowerCase().includes(s)
+      (t.rut ?? "").toLowerCase().includes(s) ||
+      (t.cargo ?? "").toLowerCase().includes(s) ||
+      (t.correo_empresa ?? "").toLowerCase().includes(s)
     );
   });
 
   const handleCreate = async () => {
-    console.log('Create trabajador');
+    console.log("Create trabajador");
+    // Aquí más adelante podemos usar sharePointClient.createListItem("TBL_TRABAJADORES", {...})
   };
 
   const handleEdit = async (trabajador: Trabajador) => {
-    console.log('Edit trabajador:', trabajador);
+    console.log("Edit trabajador:", trabajador);
+    // Aquí después podemos abrir modal / form, actualizar con updateListItem
   };
 
   const handleDelete = async (id: string | number) => {
-    if (!remove) return;
-    if (confirm('¿Estás seguro de que deseas eliminar este trabajador?')) {
+    if (!canDelete) return;
+
+    if (confirm("¿Estás seguro de que deseas eliminar este trabajador?")) {
       try {
-        await remove(String(id));
+        await sharePointClient.deleteListItem(
+          "TBL_TRABAJADORES",
+          String(id)
+        );
+        setTrabajadores((prev) =>
+          prev.filter((t) => String(t.id) !== String(id))
+        );
       } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-        alert('Error al eliminar trabajador: ' + errorMessage);
+        const errorMessage =
+          err instanceof Error ? err.message : "Error desconocido";
+        alert("Error al eliminar trabajador: " + errorMessage);
       }
     }
   };
@@ -106,7 +167,9 @@ export default function Trabajadores() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Trabajadores</h1>
-          <p className="text-gray-600">Gestión de personal (SharePoint: TBL_TRABAJADORES)</p>
+          <p className="text-gray-600">
+            Gestión de personal (SharePoint: TBL_TRABAJADORES)
+          </p>
         </div>
         {canEdit && (
           <Button onClick={handleCreate} className="flex items-center gap-2">
@@ -119,8 +182,13 @@ export default function Trabajadores() {
       {error && (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="p-4">
-            <p className="text-red-800">Error: {error.message}</p>
-            <Button onClick={refetch} variant="outline" size="sm" className="mt-2">
+            <p className="text-red-800">Error: {error}</p>
+            <Button
+              onClick={loadData}
+              variant="outline"
+              size="sm"
+              className="mt-2"
+            >
               Reintentar
             </Button>
           </CardContent>
@@ -152,7 +220,9 @@ export default function Trabajadores() {
             <div className="text-center py-8">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">
-                {searchTerm ? 'No se encontraron trabajadores' : 'No hay trabajadores registrados'}
+                {searchTerm
+                  ? "No se encontraron trabajadores"
+                  : "No hay trabajadores registrados"}
               </p>
             </div>
           ) : (
@@ -163,28 +233,52 @@ export default function Trabajadores() {
                     <th className="text-left py-3 px-4 font-medium">Nombre</th>
                     <th className="text-left py-3 px-4 font-medium">RUT</th>
                     <th className="text-left py-3 px-4 font-medium">Cargo</th>
-                    <th className="text-left py-3 px-4 font-medium">Tipo Contrato</th>
-                    <th className="text-left py-3 px-4 font-medium">Sueldo Base</th>
-                    <th className="text-left py-3 px-4 font-medium">Teléfono</th>
+                    <th className="text-left py-3 px-4 font-medium">
+                      Tipo Contrato
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium">
+                      Sueldo Base
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium">
+                      Teléfono
+                    </th>
                     <th className="text-left py-3 px-4 font-medium">Email</th>
                     <th className="text-left py-3 px-4 font-medium">Estado</th>
                     {(canEdit || canDelete) && (
-                      <th className="text-left py-3 px-4 font-medium">Acciones</th>
+                      <th className="text-left py-3 px-4 font-medium">
+                        Acciones
+                      </th>
                     )}
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((t) => {
-                    const nombreCompleto = `${t.nombres ?? ''} ${t.apellidos ?? ''}`.trim() || t.title || '-';
+                    const nombreCompleto =
+                      `${t.nombres ?? ""} ${t.apellidos ?? ""}`.trim() ||
+                      t.title ||
+                      "-";
                     return (
-                      <tr key={t.id} className="border-b hover:bg-gray-50">
+                      <tr
+                        key={t.id}
+                        className="border-b hover:bg-gray-50"
+                      >
                         <td className="py-3 px-4">{nombreCompleto}</td>
-                        <td className="py-3 px-4 font-mono text-sm">{t.rut ?? '-'}</td>
-                        <td className="py-3 px-4">{t.cargo ?? '-'}</td>
-                        <td className="py-3 px-4">{t.tipo_contrato ?? '-'}</td>
-                        <td className="py-3 px-4">{t.sueldo_base ?? '-'}</td>
-                        <td className="py-3 px-4">{t.telefono ?? t.celular ?? '-'}</td>
-                        <td className="py-3 px-4 text-sm">{t.correo_empresa ?? '-'}</td>
+                        <td className="py-3 px-4 font-mono text-sm">
+                          {t.rut ?? "-"}
+                        </td>
+                        <td className="py-3 px-4">{t.cargo ?? "-"}</td>
+                        <td className="py-3 px-4">
+                          {t.tipo_contrato ?? "-"}
+                        </td>
+                        <td className="py-3 px-4">
+                          {t.sueldo_base ?? "-"}
+                        </td>
+                        <td className="py-3 px-4">
+                          {t.telefono ?? t.celular ?? "-"}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {t.correo_empresa ?? "-"}
+                        </td>
                         <td className="py-3 px-4">
                           {t.estado ? (
                             <Badge variant="outline">{t.estado}</Badge>
@@ -196,7 +290,11 @@ export default function Trabajadores() {
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2">
                               {canEdit && (
-                                <Button variant="outline" size="sm" onClick={() => handleEdit(t)}>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEdit(t)}
+                                >
                                   <Edit className="h-4 w-4" />
                                 </Button>
                               )}
