@@ -178,9 +178,13 @@ export default function Servicios() {
     if (!form.nombre.trim()) return alert("Falta NOMBRE");
     if (!form.empresa.trim()) return alert("Falta EMPRESA");
 
-    const dotacionNum =
-      form.dotacion.trim() === "" ? null : Number.isFinite(Number(form.dotacion)) ? Number(form.dotacion) : NaN;
-    if (dotacionNum === NaN) return alert("DOTACION debe ser numérica");
+const dotTrim = form.dotacion.trim();
+const dotacionNum = dotTrim === "" ? null : Number(dotTrim);
+
+if (dotTrim !== "" && !Number.isFinite(dotacionNum)) {
+  alert("DOTACION debe ser numérica");
+  return;
+}
 
     // payload con columnas SharePoint (importante)
     const payload = {
