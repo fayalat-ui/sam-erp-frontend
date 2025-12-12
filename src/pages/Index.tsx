@@ -1,35 +1,12 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function Index() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error checking session:', error);
-          navigate('/login');
-          return;
-        }
-
-        if (session?.user) {
-          // Usuario autenticado, redirigir al dashboard
-          navigate('/dashboard');
-        } else {
-          // No hay sesión, redirigir al login
-          navigate('/login');
-        }
-      } catch (error) {
-        console.error('Error in auth check:', error);
-        navigate('/login');
-      }
-    };
-
-    checkAuth();
+    // Punto de entrada único: mandamos al login
+    navigate("/login", { replace: true });
   }, [navigate]);
 
   return (
@@ -42,12 +19,14 @@ export default function Index() {
             </svg>
           </div>
           <h1 className="text-4xl font-bold text-white mb-2">SAM ERP</h1>
-          <p className="text-xl text-blue-200 mb-6">Sistema de Administración y Monitoreo</p>
+          <p className="text-xl text-blue-200 mb-6">
+            Sistema de Administración y Monitoreo
+          </p>
         </div>
-        
+
         <div className="bg-white/10 backdrop-blur-md rounded-lg p-6 border border-white/20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400 mx-auto mb-4"></div>
-          <p className="text-white">Verificando autenticación...</p>
+          <p className="text-white">Redirigiendo al inicio de sesión…</p>
         </div>
       </div>
     </div>
