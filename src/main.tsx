@@ -1,5 +1,8 @@
-import { createRoot } from 'react-dom/client';
-import App from './App.tsx';
-import './index.css';
+import { createRoot } from "react-dom/client";
+import App from "./App";
+import { initMsal } from "./auth/initMsal";
 
-createRoot(document.getElementById('root')!).render(<App />);
+(async () => {
+  await initMsal();
+  createRoot(document.getElementById("root")!).render(<App />);
+})();
