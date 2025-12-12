@@ -1,113 +1,151 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { useSharePointAuth } from '@/contexts/SharePointAuthContext';
-import { useSharePointData } from '@/hooks/useSharePointData';
-import { trabajadoresService, mandantesService, serviciosService, usuariosService } from '@/lib/sharepoint-services';
-import { SHAREPOINT_LISTS } from '@/lib/sharepoint-mappings';
-import { 
-  Users, 
-  Building2, 
-  Briefcase, 
-  Calendar, 
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useSharePointAuth } from "@/contexts/SharePointAuthContext";
+import {
+  getTrabajadores,
+  getMandantes,
+  getServicios,
+  getVacaciones,
+  // si después creas lista de usuarios, agregamos getUsuarios en el service
+} from "@/services/sharepointService";
+import {
+  Users,
+  Building2,
+  Briefcase,
+  Calendar,
   CheckCircle,
-  TrendingUp
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+  TrendingUp,
+} from "lucide-react";
+import { Link } from "react-router-dom";
+
+type SpItem = {
+  id: string;
+  fields: Record<string, any>;
+};
 
 export default function Dashboard() {
   const { user, canRead } = useSharePointAuth();
-  
-  // Cargar datos de diferentes módulos
-  const { data: trabajadores, loading: loadingTrabajadores } = useSharePointData(
-    trabajadoresService, 
-    { 
-      listName: SHAREPOINT_LISTS.TRABAJADORES,
-      select: 'id,Title,Estado',
-      enabled: canRead('rrhh')
-    }
-  );
-  
-  const { data: mandantes, loading: loadingMandantes } = useSharePointData(
-    mandantesService, 
-    { 
-      listName: SHAREPOINT_LISTS.MANDANTES,
-      select: 'id,Title,Estado',
-      enabled: canRead('administradores')
-    }
-  );
-  
-  const { data: servicios, loading: loadingServicios } = useSharePointData(
-    serviciosService, 
-    { 
-      listName: SHAREPOINT_LISTS.SERVICIOS,
-      select: 'id,Title,Estado',
-      enabled: canRead('osp')
-    }
-  );
 
-  const { data: usuarios, loading: loadingUsuarios } = useSharePointData(
-    usuariosService, 
-    { 
-      listName: SHAREPOINT_LISTS.USUARIOS,
-      select: 'id,Title,Estado',
-      enabled: canRead('usuarios')
-    }
-  );
+  const [trabajadores, setTrabajadores] = useState<SpItem[] | null>(null);
+  const [mandantes, setMandantes] = useState<SpItem[] | null>(null);
+  const [servicios, setServicios] = useState<SpItem[] | null>(null);
+  const [vacaciones, setVacaciones] = useState<SpItem[] | null>(null);
 
-  // Calcular estadísticas
+  const [loadingTrabajadores, setLoadingTrabajadores] = useState(false);
+  const [loadingMandantes, setLoadingMandantes] = useState(false);
+  const [loadingServicios, setLoadingServicios] = useState(false);
+  const [loadingVacaciones, setLoadingVacaciones] = useState(false);
+
+  useEffect(() => {
+    // Trabajadores
+    if (canRead("rrhh")) {
+      setLoadingTrabajadores(true);
+      getTrabajadores()
+        .then((data) => setTrabajadores(data))
+        .catch((err) => {
+          console.error("Error cargando trabajadores:", err);
+          setTrabajadores([]);
+        })
+        .finally(() => setLoadingTrabajadores(false));
+    }
+
+    // Mandantes
+    if (canRead("administradores")) {
+      setLoadingMandantes(true);
+      getMandantes()
+        .then((data) => setMandantes(data))
+        .catch((err) => {
+          console.error("Error cargando mandantes:", err);
+          setMandantes([]);
+        })
+        .finally(() => setLoadingMandantes(false));
+    }
+
+    // Servicios
+    if (canRead("osp")) {
+      setLoadingServicios(true);
+      getServicios()
+        .then((data) => setServicios(data))
+        .catch((err) => {
+          console.error("Error cargando servicios:", err);
+          setServicios([]);
+        })
+        .finally(() => setLoadingServicios(false));
+    }
+
+    // Vacaciones
+    if (canRead("rrhh")) {
+      setLoadingVacaciones(true);
+      getVacaciones()
+        .then((data) => setVacaciones(data))
+        .catch((err) => {
+          console.error("Error cargando vacaciones:", err);
+          setVacaciones([]);
+        })
+        .finally(() => setLoadingVacaciones(false));
+    }
+  }, [canRead]);
+
+  // Helpers para leer Estado desde fields
+  const getEstadoCount = (items: SpItem[] | null, estado = "Activo") =>
+    items?.filter((i) => i?.fields?.Estado === estado).length || 0;
+
+  const getTotal = (items: SpItem[] | null) => items?.length || 0;
+
   const stats = [
     {
-      title: 'Trabajadores Activos',
-      value: trabajadores?.filter(t => t.Estado === 'Activo')?.length || 0,
-      total: trabajadores?.length || 0,
+      title: "Trabajadores Activos",
+      value: getEstadoCount(trabajadores, "Activo"),
+      total: getTotal(trabajadores),
       icon: Users,
-      color: 'text-blue-700',
-      bgColor: 'bg-blue-50',
-      borderColor: 'border-blue-200',
-      href: '/trabajadores',
+      color: "text-blue-700",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-200",
+      href: "/trabajadores",
       loading: loadingTrabajadores,
-      canView: canRead('rrhh')
+      canView: canRead("rrhh"),
     },
     {
-      title: 'Mandantes',
-      value: mandantes?.filter(m => m.Estado === 'Activo')?.length || 0,
-      total: mandantes?.length || 0,
+      title: "Mandantes",
+      value: getEstadoCount(mandantes, "Activo"),
+      total: getTotal(mandantes),
       icon: Building2,
-      color: 'text-emerald-700',
-      bgColor: 'bg-emerald-50',
-      borderColor: 'border-emerald-200',
-      href: '/mandantes',
+      color: "text-emerald-700",
+      bgColor: "bg-emerald-50",
+      borderColor: "border-emerald-200",
+      href: "/mandantes",
       loading: loadingMandantes,
-      canView: canRead('administradores')
+      canView: canRead("administradores"),
     },
     {
-      title: 'Servicios Activos',
-      value: servicios?.filter(s => s.Estado === 'Activo')?.length || 0,
-      total: servicios?.length || 0,
+      title: "Servicios Activos",
+      value: getEstadoCount(servicios, "Activo"),
+      total: getTotal(servicios),
       icon: Briefcase,
-      color: 'text-purple-700',
-      bgColor: 'bg-purple-50',
-      borderColor: 'border-purple-200',
-      href: '/servicios',
+      color: "text-purple-700",
+      bgColor: "bg-purple-50",
+      borderColor: "border-purple-200",
+      href: "/servicios",
       loading: loadingServicios,
-      canView: canRead('osp')
+      canView: canRead("osp"),
     },
     {
-      title: 'Usuarios Sistema',
-      value: usuarios?.filter(u => u.Estado === 'Activo')?.length || 0,
-      total: usuarios?.length || 0,
-      icon: Users,
-      color: 'text-orange-700',
-      bgColor: 'bg-orange-50',
-      borderColor: 'border-orange-200',
-      href: '/usuarios',
-      loading: loadingUsuarios,
-      canView: canRead('usuarios')
-    }
+      title: "Registros Vacaciones",
+      value: getTotal(vacaciones),
+      total: getTotal(vacaciones),
+      icon: Calendar,
+      color: "text-orange-700",
+      bgColor: "bg-orange-50",
+      borderColor: "border-orange-200",
+      href: "/vacaciones",
+      loading: loadingVacaciones,
+      canView: canRead("rrhh"),
+    },
   ];
 
-  const visibleStats = stats.filter(stat => stat.canView);
+  const visibleStats = stats.filter((stat) => stat.canView);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -116,10 +154,15 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Dashboard
+              </h1>
               <p className="text-gray-600 text-lg">
-                Bienvenido, <span className="font-semibold text-gray-800">{user?.nombre}</span>. 
-                Resumen del sistema SAM ERP.
+                Bienvenido,{" "}
+                <span className="font-semibold text-gray-800">
+                  {user?.nombre}
+                </span>
+                . Resumen del sistema SAM ERP.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -136,15 +179,20 @@ export default function Dashboard() {
           {visibleStats.map((stat, index) => {
             const Icon = stat.icon;
             return (
-              <Card key={index} className={`hover:shadow-lg transition-all duration-200 border-2 ${stat.borderColor} ${stat.bgColor}`}>
+              <Card
+                key={index}
+                className={`hover:shadow-lg transition-all duration-200 border-2 ${stat.borderColor} ${stat.bgColor}`}
+              >
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <div className={`p-3 rounded-xl ${stat.bgColor} border ${stat.borderColor}`}>
+                    <div
+                      className={`p-3 rounded-xl ${stat.bgColor} border ${stat.borderColor}`}
+                    >
                       <Icon className={`h-6 w-6 ${stat.color}`} />
                     </div>
                     <TrendingUp className="h-4 w-4 text-gray-400" />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
                       {stat.title}
@@ -156,18 +204,22 @@ export default function Dashboard() {
                         </div>
                       ) : (
                         <>
-                          <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
-                          <p className="text-lg text-gray-500">/ {stat.total}</p>
+                          <p className="text-3xl font-bold text-gray-900">
+                            {stat.value}
+                          </p>
+                          <p className="text-lg text-gray-500">
+                            / {stat.total}
+                          </p>
                         </>
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="mt-4">
                     <Link to={stat.href}>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         className={`w-full font-semibold ${stat.color} border-current hover:bg-current hover:text-white transition-all duration-200`}
                       >
                         Ver detalles
@@ -183,54 +235,64 @@ export default function Dashboard() {
         {/* Quick Links */}
         <Card className="bg-white shadow-sm border border-gray-200">
           <CardHeader className="pb-4">
-            <CardTitle className="text-xl font-bold text-gray-900">Accesos Rápidos</CardTitle>
+            <CardTitle className="text-xl font-bold text-gray-900">
+              Accesos Rápidos
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {canRead('rrhh') && (
+              {canRead("rrhh") && (
                 <Link to="/trabajadores">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full h-20 flex flex-col gap-2 border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200"
                   >
                     <Users className="h-6 w-6 text-blue-700" />
-                    <span className="text-sm font-semibold text-gray-800">Trabajadores</span>
+                    <span className="text-sm font-semibold text-gray-800">
+                      Trabajadores
+                    </span>
                   </Button>
                 </Link>
               )}
-              
-              {canRead('administradores') && (
+
+              {canRead("administradores") && (
                 <Link to="/mandantes">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full h-20 flex flex-col gap-2 border-2 border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50 transition-all duration-200"
                   >
                     <Building2 className="h-6 w-6 text-emerald-700" />
-                    <span className="text-sm font-semibold text-gray-800">Mandantes</span>
+                    <span className="text-sm font-semibold text-gray-800">
+                      Mandantes
+                    </span>
                   </Button>
                 </Link>
               )}
-              
-              {canRead('osp') && (
+
+              {canRead("osp") && (
                 <Link to="/servicios">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full h-20 flex flex-col gap-2 border-2 border-purple-200 hover:border-purple-400 hover:bg-purple-50 transition-all duration-200"
                   >
                     <Briefcase className="h-6 w-6 text-purple-700" />
-                    <span className="text-sm font-semibold text-gray-800">Servicios</span>
+                    <span className="text-sm font-semibold text-gray-800">
+                      Servicios
+                    </span>
                   </Button>
                 </Link>
               )}
-              
-              {canRead('rrhh') && (
+
+              {canRead("rrhh") && (
                 <Link to="/vacaciones">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full h-20 flex flex-col gap-2 border-2 border-orange-200 hover:border-orange-400 hover:bg-orange-50 transition-all duration-200"
                   >
                     <Calendar className="h-6 w-6 text-orange-700" />
-                    <span className="text-sm font-semibold text-gray-800">Vacaciones</span>
+                    <span className="text-sm font-semibold text-gray-800">
+                      Vacaciones
+                    </span>
                   </Button>
                 </Link>
               )}
