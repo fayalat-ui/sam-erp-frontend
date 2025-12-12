@@ -1,4 +1,5 @@
-import { Configuration, PopupRequest } from "@azure/msal-browser";
+// src/auth/msalConfig.ts
+import type { Configuration, PopupRequest } from "@azure/msal-browser";
 
 /**
  * MSAL configuration driven by environment variables.
@@ -10,6 +11,7 @@ import { Configuration, PopupRequest } from "@azure/msal-browser";
  */
 const clientId =
   import.meta.env.VITE_AZURE_CLIENT_ID || "4523a41a-818e-4d92-8775-1ccf155e7327";
+
 const tenantId =
   import.meta.env.VITE_AZURE_TENANT_ID || "2f7e4660-def9-427d-9c23-603e4e4dae55";
 
@@ -25,7 +27,10 @@ const authority = `https://login.microsoftonline.com/${tenantId}`;
 const rawScopes = import.meta.env.VITE_AZURE_SCOPES as string | undefined;
 const scopes =
   rawScopes && rawScopes.trim().length > 0
-    ? rawScopes.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean)
+    ? rawScopes
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
     : [
         // Minimal defaults for Graph access; adjust via VITE_AZURE_SCOPES if needed
         "User.Read",
