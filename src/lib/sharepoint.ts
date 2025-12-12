@@ -1,7 +1,9 @@
 import { Client } from "@microsoft/microsoft-graph-client";
 import type { AuthenticationProvider } from "@microsoft/microsoft-graph-client";
-import { PublicClientApplication } from "@azure/msal-browser";
-import { msalConfig, loginRequest } from "./msalConfig";
+
+// ✅ IMPORTA LA INSTANCIA ÚNICA (NO CREAR OTRO PublicClientApplication AQUÍ)
+import { msalInstance } from "../auth/msalInstance"; // <-- AJUSTA ESTA RUTA SI ES NECESARIO
+import { loginRequest } from "./msalConfig";
 
 // Helpers to read environment variables for SharePoint configuration.
 const SP_SITE_ID = import.meta.env.VITE_SHAREPOINT_SITE_ID as string | undefined;
@@ -22,57 +24,66 @@ const ENV_LIST_IDS: Record<string, string | undefined> = {
   TBL_SERVICIOS: import.meta.env.VITE_SP_LIST_SERVICIOS_ID as
     | string
     | undefined,
-  MANDANTES: import.meta.env.VITE_SP_LIST_MANDANTES_ID as
-    | string
-    | undefined,
-  VACACIONES: import.meta.env.VITE_SP_LIST_VACACIONES_ID as
-    | string
-    | undefined,
-  DIRECTIVAS: import.meta.env.VITE_SP_LIST_DIRECTIVAS_ID as
-    | string
-    | undefined,
+  MANDANTES: import.meta.env.VITE_SP_LIST_MANDANTES_ID as string | undefined,
+  VACACIONES: import.meta.env.VITE_SP_LIST_VACACIONES_ID as string | undefined,
+  DIRECTIVAS: import.meta.env.VITE_SP_LIST_DIRECTIVAS_ID as string | undefined,
 };
 
-// Custom authentication provider for Microsoft Graph
+// ✅ Custom authentication provider for Microsoft Graph (usando msalInstance único)
 class MsalAuthProvider implements AuthenticationProvider {
-  private msalInstance: PublicClientApplication;
   private initializedPromise: Promise<void> | null = null;
-
-  constructor() {
-    this.msalInstance = new PublicClientApplication(msalConfig);
-  }
 
   private async ensureInitialized(): Promise<void> {
     if (!this.initializedPromise) {
-      this.initializedPromise = this.msalInstance.initialize();
+      this.initializedPromise = msalInstance.initialize();
     }
     await this.initializedPromise;
+
+    // Procesa redirect result si venías volviendo del loginRedirect
+    const result = await msalInstance.handleRedirectPromise();
+    if (result?.account) {
+      msalInstance.setActiveAccount(result.account);
+    }
+
+    // Fallback: fija activeAccount si hay cuentas guardadas
+    const active = msalInstance.getActiveAccount();
+    if (!active) {
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        msalInstance.setActiveAccount(accounts[0]);
+      }
+    }
   }
 
   public async getAccessToken(): Promise<string> {
-    // 💡 AQUÍ se asegura que MSAL esté inicializado
     await this.ensureInitialized();
 
-    const accounts = this.msalInstance.getAllAccounts();
-    if (accounts.length === 0) {
-      throw new Error("No authenticated user found");
+    const account =
+      msalInstance.getActiveAccount() ?? msalInstance.getAllAccounts()[0];
+
+    // En vez de lanzar "No authenticated user found", forzamos login
+    if (!account) {
+      await msalInstance.loginRedirect(loginRequest);
+      // Tiramos error para cortar el flujo actual, porque habrá redirect
+      throw new Error("Redirecting to login...");
     }
 
     try {
-      const response = await this.msalInstance.acquireTokenSilent({
+      const response = await msalInstance.acquireTokenSilent({
         ...loginRequest,
-        account: accounts[0],
+        account,
       });
       return response.accessToken;
     } catch (error) {
-      console.error("Silent token acquisition failed, trying interactive:", error);
-      try {
-        const response = await this.msalInstance.acquireTokenPopup(loginRequest);
-        return response.accessToken;
-      } catch (interactiveError) {
-        console.error("Interactive token acquisition failed:", interactiveError);
-        throw new Error("Failed to acquire access token");
-      }
+      console.error("Silent token acquisition failed. Redirecting:", error);
+
+      // Evita popup (popup + COOP suele molestar). Mejor redirect.
+      await msalInstance.acquireTokenRedirect({
+        ...loginRequest,
+        account,
+      });
+
+      throw new Error("Redirecting to acquire token...");
     }
   }
 }
