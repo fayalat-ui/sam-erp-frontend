@@ -43,13 +43,11 @@ export default function Dashboard() {
       try {
         setError(null);
 
-        // Dashboard counts (depende de varias listas)
         setLoading((p) => ({ ...p, dashboard: true }));
         const dash = await getDashboardCounts();
         setCounts(dash);
         setLoading((p) => ({ ...p, dashboard: false }));
 
-        // Mandantes (solo total)
         if (canRead("administradores")) {
           setLoading((p) => ({ ...p, mandantes: true }));
           const m = await getMandantes();
@@ -57,7 +55,6 @@ export default function Dashboard() {
           setLoading((p) => ({ ...p, mandantes: false }));
         }
 
-        // Vacaciones (solo total registros)
         if (canRead("rrhh")) {
           setLoading((p) => ({ ...p, vacaciones: true }));
           const v = await getVacaciones();
@@ -101,7 +98,6 @@ export default function Dashboard() {
   const dVencidas = counts?.directivas.vencidas ?? 0;
   const dPorVencer = counts?.directivas.porVencer ?? 0;
   const dVigentes = counts?.directivas.vigentes ?? 0;
-  const dTotal = dVencidas + dPorVencer + dVigentes;
 
   // OS10
   const oVencidas = counts?.os10.vencidas ?? 0;
@@ -119,7 +115,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
       <div className="max-w-7xl mx-auto p-6 space-y-8">
-        {/* HEADER: Bienvenida + estado conexión */}
+        {/* HEADER */}
         <div className="grid gap-4 md:grid-cols-[2fr,1fr]">
           <Card className="border-0 shadow-md bg-white/95 backdrop-blur-sm">
             <CardContent className="p-6 flex flex-col gap-4">
@@ -248,11 +244,11 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* GRID PRINCIPAL DE KPIs */}
+        {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {canRead("rrhh") && (
             <KpiCard
-              titulo="Trabajadores (Act/Desv/Negra)"
+              titulo="Trabajadores (Activos)"
               total={tTotal}
               valor={tActivos}
               icon={Users}
@@ -288,7 +284,7 @@ export default function Dashboard() {
 
           {canRead("rrhh") && (
             <KpiCard
-              titulo="OS10 (Por vencer)"
+              titulo="OS10 (Por vencer 2 meses)"
               total={oTotal}
               valor={oPorVencer}
               icon={ShieldCheck}
@@ -299,7 +295,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* BLOQUES DE RESUMEN */}
+        {/* RESUMENES */}
         <div className="grid gap-5 lg:grid-cols-2">
           {canRead("rrhh") && (
             <Card className="shadow-sm">
@@ -313,10 +309,15 @@ export default function Dashboard() {
                 <ResumenLinea etiqueta="Activos" valor={tActivos} />
                 <ResumenLinea etiqueta="Desvinculados" valor={tDesv} />
                 <ResumenLinea etiqueta="Lista negra" valor={tNegra} />
-                <ResumenLinea etiqueta="Solicitudes: contrato solicitado" valor={scSolicitado} />
-                <ResumenLinea etiqueta="Solicitudes: enviado a revisar" valor={scRevisar} />
-                <ResumenLinea etiqueta="Solicitudes: rechazado" valor={scRechazado} />
+
+                <div className="mt-2 pt-2 border-t border-slate-200">
+                  <ResumenLinea etiqueta="Solicitudes: contrato solicitado" valor={scSolicitado} />
+                  <ResumenLinea etiqueta="Solicitudes: enviado a revisar" valor={scRevisar} />
+                  <ResumenLinea etiqueta="Solicitudes: rechazado" valor={scRechazado} />
+                </div>
+
                 <ResumenLinea etiqueta="Vacaciones (registros)" valor={vacacionesTotal} />
+
                 <div className="mt-3 flex gap-2 flex-wrap">
                   <Link to="/trabajadores">
                     <Button variant="outline" size="sm" className="rounded-full">
@@ -344,6 +345,7 @@ export default function Dashboard() {
               <CardContent className="space-y-3 text-sm text-slate-700">
                 <ResumenLinea etiqueta="Servicios activos" valor={sActivos} />
                 <ResumenLinea etiqueta="Servicios terminados" valor={sTerminados} />
+
                 {canRead("administradores") && (
                   <ResumenLinea etiqueta="Mandantes" valor={mandantesTotal} />
                 )}
