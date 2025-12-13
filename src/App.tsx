@@ -93,4 +93,112 @@ const App = () => (
               path="/clientes"
               element={
                 <ProtectedRoute module="administradores" level="lectura">
-                  <Client
+                  <Clientes />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/mandantes"
+              element={
+                <ProtectedRoute module="administradores" level="lectura">
+                  <Mandantes />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* ===== MÓDULO OSP ===== */}
+            <Route
+              path="/servicios"
+              element={
+                <ProtectedRoute module="osp" level="lectura">
+                  <Servicios />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/contratos"
+              element={
+                <ProtectedRoute module="osp" level="lectura">
+                  <Contratos />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/cursos"
+              element={
+                <ProtectedRoute module="osp" level="lectura">
+                  <Cursos />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/directivas"
+              element={
+                <ProtectedRoute module="osp" level="lectura">
+                  <Directivas />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* ===== ADMINISTRACIÓN DE USUARIOS ===== */}
+            <Route
+              path="/usuarios"
+              element={
+                <ProtectedRoute module="usuarios" level="administracion">
+                  <Usuarios />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/roles"
+              element={
+                <ProtectedRoute module="usuarios" level="administracion">
+                  <Roles />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* ===== MÓDULOS EN MIGRACIÓN ===== */}
+            <Route
+              path="/proveedores"
+              element={
+                <ProtectedRoute module="administradores" level="lectura">
+                  <MigrationNotice title="Proveedores en migración" />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/inventario"
+              element={
+                <ProtectedRoute module="administradores" level="lectura">
+                  <MigrationNotice title="Inventario en migración" />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/ventas"
+              element={
+                <ProtectedRoute module="administradores" level="lectura">
+                  <MigrationNotice title="Ventas en migración" />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* 404 */}
+            <Route path="*" element={<NotFound />} />
+
+          </Routes>
+        </BrowserRouter>
+      </SharePointAuthProvider>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
+
+export default App;
