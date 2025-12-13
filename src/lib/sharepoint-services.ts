@@ -1,118 +1,76 @@
+// src/lib/sharepoint-services.ts
 import { sharePointClient } from "@/lib/sharepoint";
 
 /**
- * Servicio SharePoint – Dashboard y RRHH
- * Fuente única de datos
+ * Servicios centralizados para SharePoint
+ * Un servicio por entidad (clientes, trabajadores, etc.)
  */
 
 // ===============================
-// TIPOS
+// TIPOS BASE
 // ===============================
 export interface SharePointItem {
   id: string;
   fields: Record<string, any>;
 }
 
-export interface DashboardCounts {
-  trabajadores: {
-    activo: number;
-    desvinculado: number;
-    listaNegra: number;
-    total: number;
-  };
-}
+// ===============================
+// CLIENTES
+// ===============================
+const LIST_CLIENTES = "TBL_CLIENTES";
+
+export const clientesService = {
+  async getAll(): Promise<SharePointItem[]> {
+    return await sharePointClient.getListItems(
+      LIST_CLIENTES,
+      "*",
+      undefined,
+      "Created desc"
+    );
+  },
+
+  async getById(id: string | number): Promise<SharePointItem> {
+    const items = await sharePointClient.getListItems(
+      LIST_CLIENTES,
+      "*",
+      `id eq ${id}`,
+      undefined,
+      1
+    );
+
+    if (!items || items.length === 0) {
+      throw new Error("Cliente no encontrado");
+    }
+
+    return items[0];
+  },
+
+  async create(fields: Record<string, any>): Promise<SharePointItem> {
+    return await sharePointClient.createListItem(
+      LIST_CLIENTES,
+      fields
+    );
+  },
+
+  async update(id: string, fields: Record<string, any>): Promise<void> {
+    await sharePointClient.updateListItem(
+      LIST_CLIENTES,
+      id,
+      fields
+    );
+  },
+
+  async remove(id: string): Promise<void> {
+    await sharePointClient.deleteListItem(
+      LIST_CLIENTES,
+      id
+    );
+  },
+};
 
 // ===============================
-// CONSTANTES
+// (A futuro)
+// trabajadoresService
+// mandantesService
+// serviciosService
 // ===============================
-const LIST_TRABAJADORES = "TBL_TRABAJADORES";
-
-// ===============================
-// DASHBOARD
-// ===============================
-export async function getDashboardCounts(): Promise<DashboardCounts> {
-  const items = await sharePointClient.getListItems(
-    LIST_TRABAJADORES,
-    "Estado"
-  );
-
-  let activo = 0;
-  let desvinculado = 0;
-  let listaNegra = 0;
-
-  for (const item of items) {
-    const estado = String(item.fields?.Estado || "").toUpperCase().trim();
-
-    if (estado === "ACTIVO") activo++;
-    else if (estado === "DESVINCULADO") desvinculado++;
-    else if (estado === "LISTA NEGRA") listaNegra++;
-  }
-
-  return {
-    trabajadores: {
-      activo,
-      desvinculado,
-      listaNegra,
-      total: items.length,
-    },
-  };
-}
-
-// ===============================
-// TRABAJADORES
-// ===============================
-export async function getTrabajadores(): Promise<SharePointItem[]> {
-  return await sharePointClient.getListItems(
-    LIST_TRABAJADORES,
-    "*",
-    undefined,
-    "Created desc"
-  );
-}
-
-export async function getTrabajadorById(
-  id: string | number
-): Promise<SharePointItem> {
-  const items = await sharePointClient.getListItems(
-    LIST_TRABAJADORES,
-    "*",
-    `id eq ${id}`,
-    undefined,
-    1
-  );
-
-  if (!items || items.length === 0) {
-    throw new Error("Trabajador no encontrado");
-  }
-
-  return items[0];
-}
-
-export async function createTrabajador(
-  fields: Record<string, any>
-): Promise<SharePointItem> {
-  return await sharePointClient.createListItem(
-    LIST_TRABAJADORES,
-    fields
-  );
-}
-
-export async function updateTrabajador(
-  id: string,
-  fields: Record<string, any>
-): Promise<void> {
-  await sharePointClient.updateListItem(
-    LIST_TRABAJADORES,
-    id,
-    fields
-  );
-}
-
-export async function deleteTrabajador(
-  id: string
-): Promise<void> {
-  await sharePointClient.deleteListItem(
-    LIST_TRABAJADORES,
-    id
-  );
-}
