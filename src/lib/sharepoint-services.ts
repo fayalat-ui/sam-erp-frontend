@@ -1,8 +1,8 @@
 import { sharePointClient } from "@/lib/sharepoint";
 
 /**
- * Servicio SharePoint – RRHH
- * Fuente ÚNICA de verdad
+ * Servicio SharePoint – Dashboard y RRHH
+ * Fuente única de datos
  */
 
 // ===============================
@@ -13,13 +13,53 @@ export interface SharePointItem {
   fields: Record<string, any>;
 }
 
+export interface DashboardCounts {
+  trabajadores: {
+    activo: number;
+    desvinculado: number;
+    listaNegra: number;
+    total: number;
+  };
+}
+
 // ===============================
 // CONSTANTES
 // ===============================
 const LIST_TRABAJADORES = "TBL_TRABAJADORES";
 
 // ===============================
-// OBTENER TODOS
+// DASHBOARD
+// ===============================
+export async function getDashboardCounts(): Promise<DashboardCounts> {
+  const items = await sharePointClient.getListItems(
+    LIST_TRABAJADORES,
+    "Estado"
+  );
+
+  let activo = 0;
+  let desvinculado = 0;
+  let listaNegra = 0;
+
+  for (const item of items) {
+    const estado = String(item.fields?.Estado || "").toUpperCase().trim();
+
+    if (estado === "ACTIVO") activo++;
+    else if (estado === "DESVINCULADO") desvinculado++;
+    else if (estado === "LISTA NEGRA") listaNegra++;
+  }
+
+  return {
+    trabajadores: {
+      activo,
+      desvinculado,
+      listaNegra,
+      total: items.length,
+    },
+  };
+}
+
+// ===============================
+// TRABAJADORES
 // ===============================
 export async function getTrabajadores(): Promise<SharePointItem[]> {
   return await sharePointClient.getListItems(
@@ -30,9 +70,6 @@ export async function getTrabajadores(): Promise<SharePointItem[]> {
   );
 }
 
-// ===============================
-// OBTENER POR ID
-// ===============================
 export async function getTrabajadorById(
   id: string | number
 ): Promise<SharePointItem> {
@@ -51,9 +88,6 @@ export async function getTrabajadorById(
   return items[0];
 }
 
-// ===============================
-// CREAR
-// ===============================
 export async function createTrabajador(
   fields: Record<string, any>
 ): Promise<SharePointItem> {
@@ -63,9 +97,6 @@ export async function createTrabajador(
   );
 }
 
-// ===============================
-// ACTUALIZAR
-// ===============================
 export async function updateTrabajador(
   id: string,
   fields: Record<string, any>
@@ -77,9 +108,6 @@ export async function updateTrabajador(
   );
 }
 
-// ===============================
-// ELIMINAR
-// ===============================
 export async function deleteTrabajador(
   id: string
 ): Promise<void> {
