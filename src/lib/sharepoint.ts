@@ -1,273 +1,216 @@
-import { sharePointClient } from "../lib/sharepoint";
+import { Client } from "@microsoft/microsoft-graph-client";
+import type { AuthenticationProvider } from "@microsoft/microsoft-graph-client";
 
-/**
- * Servicio de alto nivel para consumir listas de SharePoint.
- * Cada función apunta a una lista específica.
- */
+// ✅ IMPORTA LA INSTANCIA ÚNICA (NO CREAR OTRO PublicClientApplication AQUÍ)
+import { msalInstance } from "../auth/msalInstance"; // <-- AJUSTA ESTA RUTA SI ES NECESARIO
+import { loginRequest } from "./msalConfig";
 
-/** =========================
- *  TIPOS
- *  ========================= */
+// Helpers to read environment variables for SharePoint configuration.
+const SP_SITE_ID = import.meta.env.VITE_SHAREPOINT_SITE_ID as string | undefined;
+const SP_HOSTNAME =
+  (import.meta.env.VITE_SHAREPOINT_HOSTNAME as string | undefined) ||
+  "seguryservicios.sharepoint.com";
+const SP_SITE_PATH =
+  (import.meta.env.VITE_SHAREPOINT_SITE_PATH as string | undefined) || "/";
 
-export type DashboardCounts = {
-  trabajadores: {
-    activos: number;
-    desvinculados: number;
-    listaNegra: number;
-  };
-  solicitudesContratos: {
-    contratoSolicitado: number;
-    enviadoARevisar: number;
-    rechazado: number;
-  };
-  servicios: {
-    activos: number;
-    terminados: number;
-  };
-  directivas: {
-    vencidas: number;
-    porVencer: number;
-    vigentes: number;
-  };
-  os10: {
-    vencidas: number;
-    porVencer: number;
-    vigentes: number;
-  };
+// Optional list IDs via environment variables (preferred in production)
+const ENV_LIST_IDS: Record<string, string | undefined> = {
+  TBL_TRABAJADORES: import.meta.env.VITE_SP_LIST_TRABAJADORES_ID as
+    | string
+    | undefined,
+  TBL_CLIENTES: import.meta.env.VITE_SP_LIST_CLIENTES_ID as string | undefined,
+  TBL_SERVICIOS: import.meta.env.VITE_SP_LIST_SERVICIOS_ID as string | undefined,
+  MANDANTES: import.meta.env.VITE_SP_LIST_MANDANTES_ID as string | undefined,
+  VACACIONES: import.meta.env.VITE_SP_LIST_VACACIONES_ID as string | undefined,
+  DIRECTIVAS: import.meta.env.VITE_SP_LIST_DIRECTIVAS_ID as string | undefined,
+
+  // ✅ NUEVA LISTA: permisos por usuario
+  TBL_USUARIOS_PERMISOS: import.meta.env.VITE_SP_LIST_USUARIOS_PERMISOS_ID as
+    | string
+    | undefined,
+
+  // (Opcional) si tienes estas env en Netlify, puedes agregarlas:
+  SOLICITUD_CONTRATOS: import.meta.env.VITE_SP_LIST_CONTRATOS_ID as
+    | string
+    | undefined,
+  TBL_REGISTRO_CURSO_OS10: import.meta.env.VITE_SP_LIST_CURSOS_ID as
+    | string
+    | undefined,
 };
 
-/** =========================
- *  HELPERS DASHBOARD
- *  ========================= */
+// ✅ Custom authentication provider for Microsoft Graph (usando msalInstance único)
+class MsalAuthProvider implements AuthenticationProvider {
+  private initializedPromise: Promise<void> | null = null;
 
-function startOfTodayLocal() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initializedPromise) {
+      this.initializedPromise = msalInstance.initialize();
+    }
+    await this.initializedPromise;
+
+    // Procesa redirect result si venías volviendo del loginRedirect
+    const result = await msalInstance.handleRedirectPromise();
+    if (result?.account) {
+      msalInstance.setActiveAccount(result.account);
+    }
+
+    // Fallback: fija activeAccount si hay cuentas guardadas
+    const active = msalInstance.getActiveAccount();
+    if (!active) {
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        msalInstance.setActiveAccount(accounts[0]);
+      }
+    }
+  }
+
+  public async getAccessToken(): Promise<string> {
+    await this.ensureInitialized();
+
+    const account =
+      msalInstance.getActiveAccount() ?? msalInstance.getAllAccounts()[0];
+
+    // En vez de lanzar "No authenticated user found", forzamos login
+    if (!account) {
+      await msalInstance.loginRedirect(loginRequest);
+      throw new Error("Redirecting to login...");
+    }
+
+    try {
+      const response = await msalInstance.acquireTokenSilent({
+        ...loginRequest,
+        account,
+      });
+      return response.accessToken;
+    } catch (error) {
+      console.error("Silent token acquisition failed. Redirecting:", error);
+
+      await msalInstance.acquireTokenRedirect({
+        ...loginRequest,
+        account,
+      });
+
+      throw new Error("Redirecting to acquire token...");
+    }
+  }
 }
 
-function endOfDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(23, 59, 59, 999);
-  return x;
-}
+class SharePointClient {
+  private graphClient: Client;
+  private siteId = "";
+  private authProvider: MsalAuthProvider;
+  private listIdCache = new Map<string, string>();
 
-function addMonths(d: Date, months: number) {
-  const x = new Date(d);
-  x.setMonth(x.getMonth() + months);
-  return x;
-}
+  constructor() {
+    this.authProvider = new MsalAuthProvider();
+    this.graphClient = Client.initWithMiddleware({
+      authProvider: this.authProvider,
+    });
+  }
 
-function normalizeChoice(v: unknown) {
-  // SharePoint puede devolver Choice como string o como { Value: "..." }
-  if (!v) return "";
-  if (typeof v === "string") return v.trim().toUpperCase();
-  if (typeof v === "object" && (v as any).Value)
-    return String((v as any).Value).trim().toUpperCase();
-  return String(v).trim().toUpperCase();
-}
+  private isGuid(id: string) {
+    return /^[0-9a-fA-F-]{36}$/.test(id);
+  }
 
-function parseDate(v: unknown): Date | null {
-  if (!v) return null;
-  const d = new Date(String(v));
-  return isNaN(d.getTime()) ? null : d;
-}
+  async initializeSite() {
+    try {
+      if (this.siteId) return { id: this.siteId };
 
-function bucketByVigencia(dateValue: unknown, today: Date, plus2: Date) {
-  const d = parseDate(dateValue);
-  if (!d) return "sin_fecha";
-  if (d < today) return "vencida";
-  if (d <= plus2) return "porVencer";
-  return "vigente";
-}
+      if (SP_SITE_ID) {
+        const site = await this.graphClient.api(`/sites/${SP_SITE_ID}`).get();
+        this.siteId = site.id;
+        console.log(
+          "SharePoint site initialized by ID:",
+          site.displayName || site.id
+        );
+        return site;
+      }
 
-/** =========================
- *  TRABAJADORES (CRUD)
- *  ========================= */
+      const site = await this.graphClient
+        .api(`/sites/${SP_HOSTNAME}:${SP_SITE_PATH}`)
+        .get();
+      this.siteId = site.id;
+      console.log("SharePoint site initialized by host/path:", site.displayName);
+      return site;
+    } catch (error) {
+      console.error("Error initializing SharePoint site:", error);
+      throw error;
+    }
+  }
 
-export async function getTrabajadores() {
-  return sharePointClient.getListItems("TBL_TRABAJADORES");
-}
+  private async resolveListId(nameOrId: string): Promise<string> {
+    if (!nameOrId) throw new Error("List identifier is required");
 
-export async function getTrabajadorById(id: string | number) {
-  const items = await sharePointClient.getListItems("TBL_TRABAJADORES");
-  const found = (items as any[]).find((it) => String(it.id) === String(id));
-  if (!found) throw new Error("Trabajador no encontrado");
-  return found;
-}
+    if (this.isGuid(nameOrId)) return nameOrId;
 
-export async function createTrabajador(fields: {
-  Nombres?: string;
-  Apellidos?: string;
-  N_documento?: string;
-  Email_Empresa?: string;
-  Estado?: string;
-  NACIMIENTO?: string; // YYYY-MM-DD
-}) {
-  const title =
-    `${fields.Nombres ?? ""} ${fields.Apellidos ?? ""}`.trim() ||
-    fields.N_documento ||
-    "Trabajador";
+    const envId = ENV_LIST_IDS[nameOrId];
+    if (envId && this.isGuid(envId)) return envId;
 
-  const payload: Record<string, unknown> = {
-    Title: title,
-    ...fields,
-  };
+    const cached = this.listIdCache.get(nameOrId);
+    if (cached) return cached;
 
-  return sharePointClient.createListItem("TBL_TRABAJADORES", payload);
-}
+    if (!this.siteId) {
+      await this.initializeSite();
+    }
 
-export async function updateTrabajador(
-  id: string | number,
-  fields: Record<string, unknown>
-) {
-  return sharePointClient.updateListItem("TBL_TRABAJADORES", String(id), fields);
-}
+    const res = await this.graphClient
+      .api(`/sites/${this.siteId}/lists`)
+      .filter(`displayName eq '${nameOrId}'`)
+      .get();
 
-export async function deleteTrabajador(id: string | number) {
-  return sharePointClient.deleteListItem("TBL_TRABAJADORES", String(id));
-}
+    const list = Array.isArray(res?.value) ? res.value[0] : null;
+    if (!list?.id) {
+      throw new Error(`List not found by displayName: ${nameOrId}`);
+    }
 
-/** =========================
- *  OTRAS LISTAS (LECTURA)
- *  ========================= */
+    this.listIdCache.set(nameOrId, list.id);
+    return list.id;
+  }
 
-export async function getMandantes() {
-  return sharePointClient.getListItems("TBL_MANDANTES");
-}
+  async getListItems(listNameOrId: string): Promise<SharePointListItem[]> {
+    try {
+      if (!this.siteId) {
+        await this.initializeSite();
+      }
 
-export async function getServicios() {
-  return sharePointClient.getListItems("TBL_SERVICIOS");
-}
+      const listId = await this.resolveListId(listNameOrId);
 
-export async function getVacaciones() {
-  return sharePointClient.getListItems("TBL_VACACIONES");
-}
+      const response = await this.graphClient
+        .api(`/sites/${this.siteId}/lists/${listId}/items`)
+        .expand("fields")
+        .top(5000)
+        .get();
 
-export async function getDirectivas() {
-  return sharePointClient.getListItems("TBL_DIRECTIVAS");
-}
+      return (response.value as SharePointListItem[]) || [];
+    } catch (error) {
+      console.error(`Error getting list items from ${listNameOrId}:`, error);
+      throw error;
+    }
+  }
 
-export async function getSolicitudesContrato() {
-  return sharePointClient.getListItems("SOLICITUD_CONTRATOS");
-}
+  async createListItem(
+    listNameOrId: string,
+    fields: Record<string, unknown>
+  ): Promise<SharePointListItem> {
+    try {
+      if (!this.siteId) {
+        await this.initializeSite();
+      }
 
-export async function getCursosOS10() {
-  return sharePointClient.getListItems("TBL_REGISTRO_CURSO_OS10");
-}
+      const listId = await this.resolveListId(listNameOrId);
 
-/** =========================
- *  DASHBOARD (conteos correctos)
- *  =========================
- *  Regla: el dashboard NO inventa. Cuenta según tus valores:
- *  - Trabajadores Estado: ACTIVO, DESVINCULADO, LISTA NEGRA
- *  - Solicitud contratos ESTADO: CONTRATO SOLICITADO, ENVIADO A REVISAR, RECHAZADO
- *  - Servicios ESTADO: ACTIVO, TERMINADO
- *  - Directivas VIGENCIA: vencidas / por vencer 2 meses / vigentes
- *  - OS10 Vigencia: vencidas / por vencer 2 meses / vigentes
- */
+      const response = await this.graphClient
+        .api(`/sites/${this.siteId}/lists/${listId}/items`)
+        .post({ fields });
 
-export async function getDashboardCounts(): Promise<DashboardCounts> {
-  const today = startOfTodayLocal();
-  const plus2 = endOfDay(addMonths(today, 2));
+      return response as SharePointListItem;
+    } catch (error) {
+      console.error(`Error creating item in ${listNameOrId}:`, error);
+      throw error;
+    }
+  }
 
-  const [
-    trabajadores,
-    solicitudes,
-    servicios,
-    directivas,
-    os10,
-  ] = await Promise.all([
-    sharePointClient.getListItems("TBL_TRABAJADORES"),
-    sharePointClient.getListItems("SOLICITUD_CONTRATOS"),
-    sharePointClient.getListItems("TBL_SERVICIOS"),
-    sharePointClient.getListItems("TBL_DIRECTIVAS"),
-    sharePointClient.getListItems("TBL_REGISTRO_CURSO_OS10"),
-  ]);
-
-  // ---- TBL_TRABAJADORES (Estado)
-  let tActivos = 0,
-    tDesv = 0,
-    tNegra = 0;
-
-  (trabajadores as any[]).forEach((it) => {
-    // Con Graph suele venir como it.fields.Estado
-    const estado = normalizeChoice(it?.fields?.Estado ?? it?.Estado);
-    if (estado === "ACTIVO") tActivos++;
-    else if (estado === "DESVINCULADO") tDesv++;
-    else if (estado === "LISTA NEGRA") tNegra++;
-  });
-
-  // ---- SOLICITUD_CONTRATOS (ESTADO)
-  let scSolicitado = 0,
-    scRevisar = 0,
-    scRechazado = 0;
-
-  (solicitudes as any[]).forEach((it) => {
-    const estado = normalizeChoice(it?.fields?.ESTADO ?? it?.ESTADO);
-    if (estado === "CONTRATO SOLICITADO") scSolicitado++;
-    else if (estado === "ENVIADO A REVISAR") scRevisar++;
-    else if (estado === "RECHAZADO") scRechazado++;
-  });
-
-  // ---- TBL_SERVICIOS (ESTADO)
-  let srvActivos = 0,
-    srvTerminados = 0;
-
-  (servicios as any[]).forEach((it) => {
-    const estado = normalizeChoice(it?.fields?.ESTADO ?? it?.ESTADO);
-    if (estado === "ACTIVO") srvActivos++;
-    else if (estado === "TERMINADO") srvTerminados++;
-  });
-
-  // ---- TBL_DIRECTIVAS (VIGENCIA)
-  let dVencidas = 0,
-    dPorVencer = 0,
-    dVigentes = 0;
-
-  (directivas as any[]).forEach((it) => {
-    const bucket = bucketByVigencia(it?.fields?.VIGENCIA ?? it?.VIGENCIA, today, plus2);
-    if (bucket === "vencida") dVencidas++;
-    else if (bucket === "porVencer") dPorVencer++;
-    else if (bucket === "vigente") dVigentes++;
-  });
-
-  // ---- TBL_REGISTRO_CURSO_OS10 (Vigencia)
-  let oVencidas = 0,
-    oPorVencer = 0,
-    oVigentes = 0;
-
-  (os10 as any[]).forEach((it) => {
-    const bucket = bucketByVigencia(it?.fields?.Vigencia ?? it?.Vigencia, today, plus2);
-    if (bucket === "vencida") oVencidas++;
-    else if (bucket === "porVencer") oPorVencer++;
-    else if (bucket === "vigente") oVigentes++;
-  });
-
-  return {
-    trabajadores: {
-      activos: tActivos,
-      desvinculados: tDesv,
-      listaNegra: tNegra,
-    },
-    solicitudesContratos: {
-      contratoSolicitado: scSolicitado,
-      enviadoARevisar: scRevisar,
-      rechazado: scRechazado,
-    },
-    servicios: {
-      activos: srvActivos,
-      terminados: srvTerminados,
-    },
-    directivas: {
-      vencidas: dVencidas,
-      porVencer: dPorVencer,
-      vigentes: dVigentes,
-    },
-    os10: {
-      vencidas: oVencidas,
-      porVencer: oPorVencer,
-      vigentes: oVigentes,
-    },
-  };
-}
+  async updateListItem(
+    listNameOrId: string,
+    itemId: string,
+    fields: Record<string, unknow
