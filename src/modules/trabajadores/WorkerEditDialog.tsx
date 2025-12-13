@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
 
-// Ajusta este import cuando vea tu proyecto
-import { trabajadoresService } from "@/services/trabajadoresService";
+// 👇 Este import lo ajusto cuando me pegues el servicio de update
+// import { updateTrabajador } from "@/services/sharepoint/trabajadores";
 
 type WorkerLike = Record<string, any>;
 
@@ -13,38 +13,25 @@ type Props = {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   worker: WorkerLike;
+  trabajadorId: string; // viene del useParams
   onSaved: () => void | Promise<void>;
 };
 
-function pickId(worker: WorkerLike): string | null {
-  // Ajustaremos esto con tu modelo real
-  const id =
-    worker?.Id ??
-    worker?.ID ??
-    worker?.id ??
-    worker?._OldID ??
-    null;
-
-  if (id === null || id === undefined) return null;
-  return String(id);
-}
-
-export function WorkerEditDialog({ open, onOpenChange, worker, onSaved }: Props) {
+export function WorkerEditDialog({ open, onOpenChange, worker, trabajadorId, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
 
   const initial = useMemo(() => {
-    // Campos típicos en tu lista (los vi en tu SharePoint)
     return {
+      N_documento: worker?.N_documento ?? "",
+      Email_Empresa: worker?.Email_Empresa ?? "",
+      Email_PERSONAL: worker?.Email_PERSONAL ?? "",
+      Estado: worker?.Estado ?? "",
+      NACIMIENTO: (worker?.NACIMIENTO ?? "").slice?.(0, 10) ?? "",
+      Celular: worker?.Celular ?? "",
+      DIRECCION_ANTIGUA: worker?.DIRECCION_ANTIGUA ?? "",
+      Ciudad: worker?.Ciudad ?? "",
       Nombres: worker?.Nombres ?? "",
       Apellidos: worker?.Apellidos ?? "",
-      Email_PERSONAL: worker?.Email_PERSONAL ?? "",
-      Email_Empresa: worker?.Email_Empresa ?? "",
-      Celular: worker?.Celular ?? "",
-      Ciudad: worker?.Ciudad ?? "",
-      DIRECCION_ANTIGUA: worker?.DIRECCION_ANTIGUA ?? "",
-      Profesion: worker?.Profesion ?? "",
-      Estado: worker?.Estado ?? "",
-      ROL: worker?.ROL ?? "",
     };
   }, [worker]);
 
@@ -58,38 +45,41 @@ export function WorkerEditDialog({ open, onOpenChange, worker, onSaved }: Props)
     setForm((prev) => ({ ...prev, [k]: v }));
 
   const handleSave = async () => {
-    const id = pickId(worker);
+    const id = trabajadorId || String(worker?.Id ?? worker?.ID ?? worker?.id ?? "");
     if (!id) {
-      toast.error("No pude detectar el ID del trabajador para actualizar.");
+      toast.error("No pude detectar el ID del trabajador.");
       return;
     }
 
     try {
       setSaving(true);
 
-      // Payload solo con campos editables (sin columnas sistema)
       const payload = {
+        // solo campos editables
+        N_documento: String(form.N_documento ?? "").trim(),
+        Email_Empresa: String(form.Email_Empresa ?? "").trim(),
+        Email_PERSONAL: String(form.Email_PERSONAL ?? "").trim(),
+        Estado: String(form.Estado ?? "").trim(),
+        NACIMIENTO: form.NACIMIENTO ? `${form.NACIMIENTO}T00:00:00Z` : null, // ajuste típico SharePoint/Graph
+        Celular: String(form.Celular ?? "").trim(),
+        DIRECCION_ANTIGUA: String(form.DIRECCION_ANTIGUA ?? "").trim(),
+        Ciudad: String(form.Ciudad ?? "").trim(),
         Nombres: String(form.Nombres ?? "").trim(),
         Apellidos: String(form.Apellidos ?? "").trim(),
-        Email_PERSONAL: String(form.Email_PERSONAL ?? "").trim(),
-        Email_Empresa: String(form.Email_Empresa ?? "").trim(),
-        Celular: String(form.Celular ?? "").trim(),
-        Ciudad: String(form.Ciudad ?? "").trim(),
-        DIRECCION_ANTIGUA: String(form.DIRECCION_ANTIGUA ?? "").trim(),
-        Profesion: String(form.Profesion ?? "").trim(),
-        Estado: String(form.Estado ?? "").trim(),
-        ROL: String(form.ROL ?? "").trim(),
       };
 
-      // Aquí depende de tu servicio real. Yo lo dejo estándar:
-      await trabajadoresService.update(id, payload);
+      // ✅ Aquí falta conectar el update real
+      // await updateTrabajador(id, payload);
 
-      toast.success("Trabajador actualizado");
+      // TEMP: para probar UI sin backend
+      await new Promise((r) => setTimeout(r, 300));
+
+      toast.success("Cambios guardados (pendiente conectar update real)");
       onOpenChange(false);
       await onSaved();
     } catch (e: any) {
       console.error(e);
-      toast.error(e?.message || "No se pudo actualizar el trabajador");
+      toast.error(e?.message || "No se pudo guardar");
     } finally {
       setSaving(false);
     }
@@ -114,13 +104,23 @@ export function WorkerEditDialog({ open, onOpenChange, worker, onSaved }: Props)
           </div>
 
           <div>
-            <label className="text-sm">Email personal</label>
-            <Input value={form.Email_PERSONAL} onChange={(e) => setField("Email_PERSONAL", e.target.value)} />
+            <label className="text-sm">RUT</label>
+            <Input value={form.N_documento} onChange={(e) => setField("N_documento", e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm">Estado</label>
+            <Input value={form.Estado} onChange={(e) => setField("Estado", e.target.value)} />
           </div>
 
           <div>
             <label className="text-sm">Email empresa</label>
             <Input value={form.Email_Empresa} onChange={(e) => setField("Email_Empresa", e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm">Email personal</label>
+            <Input value={form.Email_PERSONAL} onChange={(e) => setField("Email_PERSONAL", e.target.value)} />
           </div>
 
           <div>
@@ -139,18 +139,8 @@ export function WorkerEditDialog({ open, onOpenChange, worker, onSaved }: Props)
           </div>
 
           <div>
-            <label className="text-sm">Profesión</label>
-            <Input value={form.Profesion} onChange={(e) => setField("Profesion", e.target.value)} />
-          </div>
-
-          <div>
-            <label className="text-sm">Estado</label>
-            <Input value={form.Estado} onChange={(e) => setField("Estado", e.target.value)} />
-          </div>
-
-          <div>
-            <label className="text-sm">Rol</label>
-            <Input value={form.ROL} onChange={(e) => setField("ROL", e.target.value)} />
+            <label className="text-sm">Nacimiento (YYYY-MM-DD)</label>
+            <Input value={form.NACIMIENTO} onChange={(e) => setField("NACIMIENTO", e.target.value)} placeholder="1990-12-31" />
           </div>
         </div>
 
