@@ -29,6 +29,11 @@ export type DashboardCounts = {
     porVencer: number;
     vigentes: number;
   };
+  os10: {
+    vencidos: number;
+    porVencer: number;
+    vigentes: number;
+  };
 };
 
 type SpItem = {
@@ -73,11 +78,8 @@ function pickField(item: any, candidates: string[]) {
 
 function parseDate(value: any): Date | null {
   if (!value) return null;
-
-  // SharePoint suele mandar ISO
   const d = new Date(value);
   if (isNaN(d.getTime())) return null;
-
   return d;
 }
 
@@ -101,17 +103,23 @@ export async function getDirectivas() {
   return sharePointClient.getListItems("TBL_DIRECTIVAS");
 }
 
+export async function getCursosOS10() {
+  return sharePointClient.getListItems("TBL_REGISTRO_CURSO_OS10");
+}
+
 /** =========================
- *  DASHBOARD – PASO 4
+ *  DASHBOARD – PASO 5
  *  ========================= */
 
 export async function getDashboardCounts(): Promise<DashboardCounts> {
-  const [trabajadores, servicios, contratos, directivas] = await Promise.all([
-    getTrabajadores(),
-    getServicios(),
-    getSolicitudesContrato(),
-    getDirectivas(),
-  ]);
+  const [trabajadores, servicios, contratos, directivas, os10] =
+    await Promise.all([
+      getTrabajadores(),
+      getServicios(),
+      getSolicitudesContrato(),
+      getDirectivas(),
+      getCursosOS10(),
+    ]);
 
   // ---- TRABAJADORES
   let tActivos = 0;
@@ -120,7 +128,6 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
 
   (trabajadores as SpItem[]).forEach((item) => {
     const estado = normalizeChoice(pickField(item, ["Estado", "ESTADO"]));
-
     if (estado === "ACTIVO") tActivos++;
     else if (estado === "DESVINCULADO") tDesvinculados++;
     else if (estado === "LISTA NEGRA") tListaNegra++;
@@ -132,7 +139,6 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
 
   (servicios as SpItem[]).forEach((item) => {
     const estado = normalizeChoice(pickField(item, ["Estado", "ESTADO"]));
-
     if (estado === "ACTIVO") sActivos++;
     else if (estado === "TERMINADO") sTerminados++;
   });
@@ -144,13 +150,12 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
 
   (contratos as SpItem[]).forEach((item) => {
     const estado = normalizeChoice(pickField(item, ["Estado", "ESTADO"]));
-
     if (estado === "CONTRATO SOLICITADO") cSolicitados++;
     else if (estado === "ENVIADO A REVISAR") cRevisar++;
     else if (estado === "RECHAZADO") cRechazados++;
   });
 
-  // ---- DIRECTIVAS (VIGENCIA)
+  // ---- DIRECTIVAS
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
 
@@ -162,14 +167,26 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
   let dVigentes = 0;
 
   (directivas as SpItem[]).forEach((item) => {
-    const rawFecha = pickField(item, ["VIGENCIA", "Vigencia"]);
-    const fecha = parseDate(rawFecha);
-
+    const fecha = parseDate(pickField(item, ["VIGENCIA", "Vigencia"]));
     if (!fecha) return;
 
     if (fecha < hoy) dVencidas++;
     else if (fecha <= dosMeses) dPorVencer++;
     else dVigentes++;
+  });
+
+  // ---- OS10
+  let oVencidos = 0;
+  let oPorVencer = 0;
+  let oVigentes = 0;
+
+  (os10 as SpItem[]).forEach((item) => {
+    const fecha = parseDate(pickField(item, ["VIGENCIA", "Vigencia"]));
+    if (!fecha) return;
+
+    if (fecha < hoy) oVencidos++;
+    else if (fecha <= dosMeses) oPorVencer++;
+    else oVigentes++;
   });
 
   return {
@@ -191,6 +208,11 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
       vencidas: dVencidas,
       porVencer: dPorVencer,
       vigentes: dVigentes,
+    },
+    os10: {
+      vencidos: oVencidos,
+      porVencer: oPorVencer,
+      vigentes: oVigentes,
     },
   };
 }
