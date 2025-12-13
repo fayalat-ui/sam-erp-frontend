@@ -67,12 +67,20 @@ interface TrabajadorDetalleData {
 
 function formatFecha(fecha?: string) {
   if (!fecha) return "-";
-  return fecha.slice(0, 10);
+  const d = new Date(fecha);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toISOString().slice(0, 10);
 }
 
 function toIsoDateInput(value?: string) {
   if (!value) return "";
-  return value.slice(0, 10);
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
+function isClientFn(obj: any, fn: string) {
+  return obj && typeof obj[fn] === "function";
 }
 
 export default function TrabajadorDetalle() {
@@ -93,13 +101,8 @@ export default function TrabajadorDetalle() {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const spCanUpdate = useMemo(() => {
-    return typeof (sharePointClient as any)?.updateListItem === "function";
-  }, []);
-
-  const spCanDelete = useMemo(() => {
-    return typeof (sharePointClient as any)?.deleteListItem === "function";
-  }, []);
+  const spCanUpdate = useMemo(() => isClientFn(sharePointClient as any, "updateListItem"), []);
+  const spCanDelete = useMemo(() => isClientFn(sharePointClient as any, "deleteListItem"), []);
 
   const loadData = async () => {
     if (!id) return;
@@ -118,6 +121,7 @@ export default function TrabajadorDetalle() {
 
       setData(normalized);
       setForm(normalized);
+      setIsEditing(false);
     } catch (err: unknown) {
       const msg =
         err instanceof Error
@@ -127,14 +131,14 @@ export default function TrabajadorDetalle() {
       setError(msg);
       setData(null);
       setForm(null);
+      setIsEditing(false);
     } finally {
       setLoading(false);
-      setIsEditing(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    void loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -159,7 +163,7 @@ export default function TrabajadorDetalle() {
 
     if (!spCanUpdate) {
       alert(
-        "No se encontró updateListItem en sharePointClient. La ficha se puede ver, pero falta habilitar actualización."
+        "No se encontró updateListItem en sharePointClient. Se puede ver la ficha, pero falta habilitar actualización."
       );
       return;
     }
@@ -168,6 +172,7 @@ export default function TrabajadorDetalle() {
     setError(null);
 
     try {
+      // Solo enviamos campos que realmente editas (conservador, no rompe nada)
       const payload: Record<string, any> = {
         Nombres: form.Nombres ?? "",
         Apellidos: form.Apellidos ?? "",
@@ -189,7 +194,10 @@ export default function TrabajadorDetalle() {
         Notas: form.Notas ?? "",
       };
 
-      if (form.NACIMIENTO) payload.NACIMIENTO = form.NACIMIENTO;
+      // NACIMIENTO: SharePoint suele aceptar ISO (YYYY-MM-DD) o DateTime.
+      // En tu lista es "Fecha y hora", así que mandamos "YYYY-MM-DD" (Graph lo acepta normalmente).
+      const birth = toIsoDateInput(form.NACIMIENTO);
+      if (birth) payload.NACIMIENTO = birth;
 
       await (sharePointClient as any).updateListItem(
         "TBL_TRABAJADORES",
@@ -248,8 +256,11 @@ export default function TrabajadorDetalle() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex items-center gap-3 text-gray-600">
+          <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-blue-600"></div>
+          <span>Cargando ficha…</span>
+        </div>
       </div>
     );
   }
@@ -273,10 +284,12 @@ export default function TrabajadorDetalle() {
     );
   }
 
+  const titulo = data.NOMNRE_COMPLETO || "Trabajador";
+
   return (
     <div className="space-y-6">
       {/* Volver + acciones */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Button variant="outline" onClick={() => navigate("/trabajadores")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Volver a Trabajadores
@@ -327,330 +340,353 @@ export default function TrabajadorDetalle() {
       </div>
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">
-          {data.NOMNRE_COMPLETO || "Trabajador"}
-        </h1>
-        <div className="mt-1">
-          {data.Estado ? (
-            <Badge variant="outline">{data.Estado}</Badge>
-          ) : (
-            <Badge variant="secondary">Sin estado</Badge>
-          )}
+      <Card className="shadow-sm">
+        <CardContent className="p-5 sm:p-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{titulo}</h1>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {data.Estado ? (
+                  <Badge variant="outline">{data.Estado}</Badge>
+                ) : (
+                  <Badge variant="secondary">Sin estado</Badge>
+                )}
+                {data.N_documento ? (
+                  <Badge variant="outline">
+                    Doc: <span className="ml-1 font-mono">{data.N_documento}</span>
+                  </Badge>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Notas técnicas sólo si aplica */}
+            <div className="text-sm text-amber-700">
+              {!spCanUpdate && canEdit && (
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>
+                    Falta <b>updateListItem</b> para guardar.
+                  </span>
+                </div>
+              )}
+              {!spCanDelete && canDelete && (
+                <div className="flex items-center gap-2 mt-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>
+                    Falta <b>deleteListItem</b> para eliminar.
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Grid principal */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Columna izquierda */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* DATOS PERSONALES */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Datos personales
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-gray-500">Nombres</p>
+                {isEditing ? (
+                  <Input
+                    value={form.Nombres ?? ""}
+                    onChange={(e) => onChange("Nombres", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.Nombres || "-"}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">Apellidos</p>
+                {isEditing ? (
+                  <Input
+                    value={form.Apellidos ?? ""}
+                    onChange={(e) => onChange("Apellidos", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.Apellidos || "-"}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">Documento</p>
+                {isEditing ? (
+                  <Input
+                    value={form.N_documento ?? ""}
+                    onChange={(e) => onChange("N_documento", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.N_documento || "-"}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">Tipo documento</p>
+                <p className="font-medium">{data.T_documento || "-"}</p>
+              </div>
+
+              <div>
+                <p className="text-gray-500">Nacimiento</p>
+                {isEditing ? (
+                  <Input
+                    type="date"
+                    value={toIsoDateInput(form.NACIMIENTO)}
+                    onChange={(e) => onChange("NACIMIENTO", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{formatFecha(data.NACIMIENTO)}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">Nacionalidad</p>
+                <p className="font-medium">{data.Nacionalidad || "-"}</p>
+              </div>
+
+              <div>
+                <p className="text-gray-500">Género</p>
+                <p className="font-medium">{data.GENERO || "-"}</p>
+              </div>
+
+              <div>
+                <p className="text-gray-500">Estado civil</p>
+                <p className="font-medium">{data.Estado_civil || "-"}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* CONTACTO */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Contacto
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-gray-500">Email empresa</p>
+                {isEditing ? (
+                  <Input
+                    value={form.Email_Empresa ?? ""}
+                    onChange={(e) => onChange("Email_Empresa", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.Email_Empresa || "-"}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">Email personal</p>
+                {isEditing ? (
+                  <Input
+                    value={form.Email_PERSONAL ?? ""}
+                    onChange={(e) => onChange("Email_PERSONAL", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.Email_PERSONAL || "-"}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">Celular</p>
+                {isEditing ? (
+                  <Input
+                    value={form.Celular ?? ""}
+                    onChange={(e) => onChange("Celular", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.Celular || "-"}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">Ciudad</p>
+                {isEditing ? (
+                  <Input
+                    value={form.Ciudad ?? ""}
+                    onChange={(e) => onChange("Ciudad", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.Ciudad || "-"}</p>
+                )}
+              </div>
+
+              <div className="sm:col-span-2">
+                <p className="text-gray-500">Dirección</p>
+                {isEditing ? (
+                  <Input
+                    value={form.DIRECCION_ANTIGUA ?? ""}
+                    onChange={(e) => onChange("DIRECCION_ANTIGUA", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.DIRECCION_ANTIGUA || "-"}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {!spCanUpdate && canEdit && (
-          <p className="mt-2 text-sm text-amber-700">
-            Nota: falta implementar <b>updateListItem</b> en sharePointClient para
-            guardar cambios.
-          </p>
-        )}
-        {!spCanDelete && canDelete && (
-          <p className="mt-2 text-sm text-amber-700">
-            Nota: falta implementar <b>deleteListItem</b> en sharePointClient para
-            eliminar.
-          </p>
-        )}
+        {/* Columna derecha */}
+        <div className="space-y-6">
+          {/* EMERGENCIA */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Emergencia
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div>
+                <p className="text-gray-500">Contacto</p>
+                {isEditing ? (
+                  <Input
+                    value={form.Contacto_Emergencia ?? ""}
+                    onChange={(e) => onChange("Contacto_Emergencia", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.Contacto_Emergencia || "-"}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">Teléfono</p>
+                {isEditing ? (
+                  <Input
+                    value={form.Telefono_Emergencia ?? ""}
+                    onChange={(e) => onChange("Telefono_Emergencia", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.Telefono_Emergencia || "-"}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* LABORAL */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Briefcase className="h-5 w-5" />
+                Laboral
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div>
+                <p className="text-gray-500">Estado</p>
+                {isEditing ? (
+                  <Input
+                    value={form.Estado ?? ""}
+                    onChange={(e) => onChange("Estado", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.Estado || "-"}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">ROL</p>
+                {isEditing ? (
+                  <Input
+                    value={form.ROL ?? ""}
+                    onChange={(e) => onChange("ROL", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.ROL || "-"}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">Profesión</p>
+                {isEditing ? (
+                  <Input
+                    value={form.Profesion ?? ""}
+                    onChange={(e) => onChange("Profesion", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.Profesion || "-"}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">Nivel educativo</p>
+                <p className="font-medium">{data.Nivel_educativo || "-"}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* PAGO */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Pago
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div>
+                <p className="text-gray-500">Banco</p>
+                {isEditing ? (
+                  <Input
+                    value={form.BANCO_PAGO ?? ""}
+                    onChange={(e) => onChange("BANCO_PAGO", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.BANCO_PAGO || "-"}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">Tipo cuenta</p>
+                {isEditing ? (
+                  <Input
+                    value={form.TIPO_CUENTA_PAGO ?? ""}
+                    onChange={(e) => onChange("TIPO_CUENTA_PAGO", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.TIPO_CUENTA_PAGO || "-"}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">Número cuenta</p>
+                {isEditing ? (
+                  <Input
+                    value={form.NUMERO_CUENTA_PAGO ?? ""}
+                    onChange={(e) => onChange("NUMERO_CUENTA_PAGO", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.NUMERO_CUENTA_PAGO || "-"}</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-gray-500">Titular</p>
+                {isEditing ? (
+                  <Input
+                    value={form.TITULAR_CUENTA_PAGO ?? ""}
+                    onChange={(e) => onChange("TITULAR_CUENTA_PAGO", e.target.value)}
+                  />
+                ) : (
+                  <p className="font-medium">{data.TITULAR_CUENTA_PAGO || "-"}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-
-      {/* DATOS PERSONALES */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            Datos personales
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-gray-500">Nombres</p>
-            {isEditing ? (
-              <Input
-                value={form.Nombres ?? ""}
-                onChange={(e) => onChange("Nombres", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.Nombres || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Apellidos</p>
-            {isEditing ? (
-              <Input
-                value={form.Apellidos ?? ""}
-                onChange={(e) => onChange("Apellidos", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.Apellidos || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Documento</p>
-            {isEditing ? (
-              <Input
-                value={form.N_documento ?? ""}
-                onChange={(e) => onChange("N_documento", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.N_documento || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Tipo documento</p>
-            <p className="font-medium">{data.T_documento || "-"}</p>
-          </div>
-
-          <div>
-            <p className="text-gray-500">Nacimiento</p>
-            {isEditing ? (
-              <Input
-                type="date"
-                value={toIsoDateInput(form.NACIMIENTO)}
-                onChange={(e) => onChange("NACIMIENTO", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{formatFecha(data.NACIMIENTO)}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Nacionalidad</p>
-            <p className="font-medium">{data.Nacionalidad || "-"}</p>
-          </div>
-
-          <div>
-            <p className="text-gray-500">Género</p>
-            <p className="font-medium">{data.GENERO || "-"}</p>
-          </div>
-
-          <div>
-            <p className="text-gray-500">Estado civil</p>
-            <p className="font-medium">{data.Estado_civil || "-"}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* CONTACTO */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
-            Contacto
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-gray-500">Email empresa</p>
-            {isEditing ? (
-              <Input
-                value={form.Email_Empresa ?? ""}
-                onChange={(e) => onChange("Email_Empresa", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.Email_Empresa || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Email personal</p>
-            {isEditing ? (
-              <Input
-                value={form.Email_PERSONAL ?? ""}
-                onChange={(e) => onChange("Email_PERSONAL", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.Email_PERSONAL || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Celular</p>
-            {isEditing ? (
-              <Input
-                value={form.Celular ?? ""}
-                onChange={(e) => onChange("Celular", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.Celular || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Dirección</p>
-            {isEditing ? (
-              <Input
-                value={form.DIRECCION_ANTIGUA ?? ""}
-                onChange={(e) => onChange("DIRECCION_ANTIGUA", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.DIRECCION_ANTIGUA || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Ciudad</p>
-            {isEditing ? (
-              <Input
-                value={form.Ciudad ?? ""}
-                onChange={(e) => onChange("Ciudad", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.Ciudad || "-"}</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* EMERGENCIA */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5" />
-            Contacto de emergencia
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-gray-500">Contacto</p>
-            {isEditing ? (
-              <Input
-                value={form.Contacto_Emergencia ?? ""}
-                onChange={(e) => onChange("Contacto_Emergencia", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.Contacto_Emergencia || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Teléfono</p>
-            {isEditing ? (
-              <Input
-                value={form.Telefono_Emergencia ?? ""}
-                onChange={(e) => onChange("Telefono_Emergencia", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.Telefono_Emergencia || "-"}</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* LABORAL */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Briefcase className="h-5 w-5" />
-            Información laboral
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-gray-500">Estado</p>
-            {isEditing ? (
-              <Input
-                value={form.Estado ?? ""}
-                onChange={(e) => onChange("Estado", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.Estado || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">ROL</p>
-            {isEditing ? (
-              <Input
-                value={form.ROL ?? ""}
-                onChange={(e) => onChange("ROL", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.ROL || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Profesión</p>
-            {isEditing ? (
-              <Input
-                value={form.Profesion ?? ""}
-                onChange={(e) => onChange("Profesion", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.Profesion || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Nivel educativo</p>
-            <p className="font-medium">{data.Nivel_educativo || "-"}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* PAGO */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" />
-            Datos de pago
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-gray-500">Banco</p>
-            {isEditing ? (
-              <Input
-                value={form.BANCO_PAGO ?? ""}
-                onChange={(e) => onChange("BANCO_PAGO", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.BANCO_PAGO || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Tipo cuenta</p>
-            {isEditing ? (
-              <Input
-                value={form.TIPO_CUENTA_PAGO ?? ""}
-                onChange={(e) => onChange("TIPO_CUENTA_PAGO", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.TIPO_CUENTA_PAGO || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Número cuenta</p>
-            {isEditing ? (
-              <Input
-                value={form.NUMERO_CUENTA_PAGO ?? ""}
-                onChange={(e) => onChange("NUMERO_CUENTA_PAGO", e.target.value)}
-              />
-            ) : (
-              <p className="font-medium">{data.NUMERO_CUENTA_PAGO || "-"}</p>
-            )}
-          </div>
-
-          <div>
-            <p className="text-gray-500">Titular</p>
-            {isEditing ? (
-              <Input
-                value={form.TITULAR_CUENTA_PAGO ?? ""}
-                onChange={(e) =>
-                  onChange("TITULAR_CUENTA_PAGO", e.target.value)
-                }
-              />
-            ) : (
-              <p className="font-medium">{data.TITULAR_CUENTA_PAGO || "-"}</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* NOTAS */}
       <Card>
@@ -660,7 +696,7 @@ export default function TrabajadorDetalle() {
         <CardContent className="text-sm">
           {isEditing ? (
             <textarea
-              className="w-full min-h-[120px] border rounded p-3"
+              className="w-full min-h-[140px] border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={form.Notas ?? ""}
               onChange={(e) => onChange("Notas", e.target.value)}
             />
