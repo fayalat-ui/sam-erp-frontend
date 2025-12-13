@@ -1,111 +1,90 @@
 import { sharePointClient } from "@/lib/sharepoint";
 
-/* ======================================================
-   TIPOS
-====================================================== */
+/**
+ * Servicio central de SharePoint
+ * RRHH – Trabajadores
+ */
 
-export interface DashboardCounts {
-  trabajadores: {
-    activos: number;
-    desvinculados: number;
-    listaNegra: number;
-  };
-  servicios: {
-    activos: number;
-    terminados: number;
-  };
+// ===============================
+// TIPOS
+// ===============================
+export interface SharePointItem {
+  id: string;
+  fields: Record<string, any>;
 }
 
-/* ======================================================
-   TRABAJADORES
-====================================================== */
+// ===============================
+// CONSTANTES
+// ===============================
+const LIST_TRABAJADORES = "TBL_TRABAJADORES";
 
-export async function getTrabajadores() {
-  return sharePointClient.getListItems("TBL_TRABAJADORES");
+// ===============================
+// OBTENER TODOS
+// ===============================
+export async function getTrabajadores(): Promise<SharePointItem[]> {
+  return await sharePointClient.getListItems(
+    LIST_TRABAJADORES,
+    "*",
+    undefined,
+    "Created desc"
+  );
 }
 
-export async function getTrabajadorById(id: string | number) {
-  const items = await sharePointClient.getListItems("TBL_TRABAJADORES");
-  const found = (items as any[]).find(
-    (it) => String(it.id) === String(id)
+// ===============================
+// OBTENER POR ID
+// ===============================
+export async function getTrabajadorById(
+  id: string | number
+): Promise<SharePointItem> {
+  const items = await sharePointClient.getListItems(
+    LIST_TRABAJADORES,
+    "*",
+    `id eq ${id}`,
+    undefined,
+    1
   );
 
-  if (!found) throw new Error("Trabajador no encontrado");
-  return found;
+  if (!items || items.length === 0) {
+    throw new Error("Trabajador no encontrado");
+  }
+
+  return items[0];
 }
 
-export async function createTrabajador(fields: {
-  Nombres?: string;
-  Apellidos?: string;
-  N_documento?: string;
-  Email_Empresa?: string;
-  Estado?: string;
-  NACIMIENTO?: string;
-}) {
-  const title =
-    `${fields.Nombres ?? ""} ${fields.Apellidos ?? ""}`.trim() ||
-    fields.N_documento ||
-    "Trabajador";
-
-  return sharePointClient.createListItem("TBL_TRABAJADORES", {
-    Title: title,
-    ...fields,
-  });
+// ===============================
+// CREAR
+// ===============================
+export async function createTrabajador(
+  fields: Record<string, any>
+): Promise<SharePointItem> {
+  return await sharePointClient.createListItem(
+    LIST_TRABAJADORES,
+    fields
+  );
 }
 
+// ===============================
+// ACTUALIZAR
+// ===============================
 export async function updateTrabajador(
   id: string | number,
-  fields: Record<string, unknown>
-) {
-  return sharePointClient.updateListItem(
-    "TBL_TRABAJADORES",
+  fields: Record<string, any>
+): Promise<void> {
+  await sharePointClient.updateListItem(
+    LIST_TRABAJADORES,
     String(id),
     fields
   );
 }
 
-export async function deleteTrabajador(id: string | number) {
-  return sharePointClient.deleteListItem(
-    "TBL_TRABAJADORES",
+// ===============================
+// ELIMINAR
+// ===============================
+export async function deleteTrabajador(
+  id: string | number
+): Promise<void> {
+  await sharePointClient.deleteListItem(
+    LIST_TRABAJADORES,
     String(id)
   );
-}
-
-/* ======================================================
-   SERVICIOS
-====================================================== */
-
-export async function getServicios() {
-  return sharePointClient.getListItems("TBL_SERVICIOS");
-}
-
-/* ======================================================
-   DASHBOARD
-====================================================== */
-
-export async function getDashboardCounts(): Promise<DashboardCounts> {
-  const [trabajadores, servicios] = await Promise.all([
-    sharePointClient.getListItems("TBL_TRABAJADORES"),
-    sharePointClient.getListItems("TBL_SERVICIOS"),
-  ]);
-
-  const t = { activos: 0, desvinculados: 0, listaNegra: 0 };
-  trabajadores.forEach((i: any) => {
-    const e = (i.fields?.Estado || "").toUpperCase();
-    if (e === "ACTIVO") t.activos++;
-    else if (e === "DESVINCULADO") t.desvinculados++;
-    else if (e === "LISTA NEGRA") t.listaNegra++;
-  });
-
-  const s = { activos: 0, terminados: 0 };
-  servicios.forEach((i: any) => {
-    const e = (i.fields?.Estado || "").toUpperCase();
-    if (e === "ACTIVO") s.activos++;
-    else s.terminados++;
-  });
-
-  return {
-    trabajadores: t,
-    servicios: s,
-  };
 }
