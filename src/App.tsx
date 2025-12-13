@@ -2,12 +2,17 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+
 import { SharePointAuthProvider } from '@/contexts/SharePointAuthContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+
+// Páginas base
 import Index from './pages/Index';
 import NotFound from './pages/NotFound';
 import { LoginPage } from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
+
+// Módulos
 import Trabajadores from './pages/Trabajadores';
 import Clientes from './pages/Clientes';
 import Mandantes from './pages/Mandantes';
@@ -15,11 +20,14 @@ import Servicios from './pages/Servicios';
 import Contratos from './pages/Contratos';
 import Cursos from './pages/Cursos';
 import Vacaciones from './pages/Vacaciones';
+import Jornadas from './pages/Jornadas';
+import Directivas from './pages/Directivas';
+
+// Administración
 import Usuarios from './pages/Usuarios';
 import Roles from './pages/Roles';
-import Directivas from './pages/Directivas';
-import Jornadas from './pages/Jornadas';
 
+// Utilidades
 import TestSharePoint from './pages/TestSharePoint';
 import MigrationNotice from './pages/_MigrationNotice';
 
@@ -32,10 +40,14 @@ const App = () => (
       <SharePointAuthProvider>
         <BrowserRouter>
           <Routes>
-            {/* Ruta raíz como en el inicio: Index hace verificación y redirige a login/dashboard */}
+
+            {/* Ruta raíz: valida sesión y redirige */}
             <Route path="/" element={<Index />} />
 
+            {/* Login */}
             <Route path="/login" element={<LoginPage />} />
+
+            {/* Dashboard */}
             <Route
               path="/dashboard"
               element={
@@ -45,18 +57,19 @@ const App = () => (
               }
             />
 
-            {/* Página de diagnóstico SharePoint disponible, pero no es la ruta por defecto */}
+            {/* Diagnóstico SharePoint */}
             <Route path="/test-sharepoint" element={<TestSharePoint />} />
 
-            {/* Módulo RR.HH (protegido) */}
+            {/* ===== MÓDULO RRHH ===== */}
             <Route
-              path="/trabajadores"
+              path="/trabajadores/*"
               element={
                 <ProtectedRoute module="rrhh" level="lectura">
                   <Trabajadores />
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/vacaciones"
               element={
@@ -65,6 +78,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/jornadas"
               element={
@@ -74,108 +88,9 @@ const App = () => (
               }
             />
 
-            {/* Módulo Administradores */}
+            {/* ===== MÓDULO ADMINISTRADORES ===== */}
             <Route
               path="/clientes"
               element={
                 <ProtectedRoute module="administradores" level="lectura">
-                  <Clientes />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/mandantes"
-              element={
-                <ProtectedRoute module="administradores" level="lectura">
-                  <Mandantes />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Módulo OSP */}
-            <Route
-              path="/servicios"
-              element={
-                <ProtectedRoute module="osp" level="lectura">
-                  <Servicios />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/contratos"
-              element={
-                <ProtectedRoute module="osp" level="lectura">
-                  <Contratos />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/cursos"
-              element={
-                <ProtectedRoute module="osp" level="lectura">
-                  <Cursos />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/directivas"
-              element={
-                <ProtectedRoute module="osp" level="lectura">
-                  <Directivas />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Administración de Usuarios */}
-            <Route
-              path="/usuarios"
-              element={
-                <ProtectedRoute module="usuarios" level="administracion">
-                  <Usuarios />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/roles"
-              element={
-                <ProtectedRoute module="usuarios" level="administracion">
-                  <Roles />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Placeholders para módulos en migración (protegidos) */}
-            <Route
-              path="/proveedores"
-              element={
-                <ProtectedRoute module="administradores" level="lectura">
-                  <MigrationNotice title="Proveedores en migración" />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/inventario"
-              element={
-                <ProtectedRoute module="administradores" level="lectura">
-                  <MigrationNotice title="Inventario en migración" />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/ventas"
-              element={
-                <ProtectedRoute module="administradores" level="lectura">
-                  <MigrationNotice title="Ventas en migración" />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </SharePointAuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
-
-export default App;
+                  <Client
