@@ -9,6 +9,7 @@ import type { AccountInfo } from "@azure/msal-browser";
 import { msalInstance } from "@/auth/msalInstance";
 import { loginRequest } from "@/auth/msalConfig";
 import { getAccessToken as coreGetAccessToken } from "@/auth/authService";
+import { sharePointClient } from "@/lib/sharepoint";
 
 type Permisos = Record<string, string[]>;
 
@@ -27,35 +28,26 @@ interface SharePointAuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
 
-  // auth
   login: () => Promise<void>;
   logout: () => Promise<void>;
   getAccessToken: () => Promise<string>;
 
-  // permisos
   hasPermission: (module: string, level: string) => boolean;
   canRead: (module: string) => boolean;
   canWrite: (module: string) => boolean;
   canAdmin: (module: string) => boolean;
 
-  // admin del sistema
   isSystemAdmin: boolean;
 
-  // almacenamiento temporal (localStorage)
-  getStoredPermissions: () => Record<string, Permisos>;
-  saveStoredPermissions: (all: Record<string, Permisos>) => void;
   reloadPermissions: () => Promise<void>;
 }
 
 const SharePointAuthContext =
   createContext<SharePointAuthContextType | undefined>(undefined);
 
-const STORAGE_KEY = "samerp_user_permissions_v1";
+const PERMS_LIST = "TBL_USUARIOS_PERMISOS";
 
-/**
- * Env opcional: lista de UPNs (emails) que serán Admin del sistema
- * Formato: "user1@dominio.cl,user2@dominio.cl"
- */
+// Env opcional (respaldo): lista de UPNs admin del sistema
 const SYSTEM_ADMIN_UPNS = (
   (import.meta.env.VITE_SYSTEM_ADMIN_UPNS as string | undefined) || ""
 )
@@ -63,29 +55,74 @@ const SYSTEM_ADMIN_UPNS = (
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
 
-function readPermissionsStore(): Record<string, Permisos> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Record<string, Permisos>;
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
+function ensureArrayStrings(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x) => typeof x === "string") as string[];
+  if (typeof v === "string" && v.trim()) return [v.trim()];
+  return [];
 }
 
-function writePermissionsStore(all: Record<string, Permisos>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-}
-
-function normalizePermisos(p: any): Permisos {
+function normalizePerms(p?: Permisos): Permisos {
+  const modules = ["rrhh", "administradores", "osp", "usuarios"];
   const out: Permisos = {};
-  if (!p || typeof p !== "object") return out;
-  for (const k of Object.keys(p)) {
-    const v = p[k];
-    out[k] = Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  for (const m of modules) out[m] = [];
+  if (!p) return out;
+
+  for (const m of modules) {
+    out[m] = Array.isArray(p[m]) ? p[m].filter((x) => typeof x === "string") : [];
   }
   return out;
+}
+
+function defaultPermisos(systemAdmin: boolean): Permisos {
+  return normalizePerms({
+    rrhh: ["lectura"],
+    administradores: ["lectura"],
+    osp: ["lectura"],
+    usuarios: systemAdmin ? ["lectura", "escritura", "administracion"] : ["lectura"],
+  });
+}
+
+async function fetchPermsFromSharePoint(upn: string): Promise<{
+  found: boolean;
+  isSystemAdmin: boolean;
+  permisos: Permisos;
+}> {
+  // Seleccionamos SOLO lo necesario (rápido)
+  const select =
+    "Title,USR_IS_SYSTEM_ADMIN,PERM_RRHH,PERM_ADMINISTRADORES,PERM_OSP,PERM_USUARIOS,USR_ESTADO";
+
+  // IMPORTANTE: $filter por fields no siempre funciona en Graph según tenant/lista,
+  // así que hacemos top grande y filtramos en cliente (robusto y sin sorpresas).
+  const items = await sharePointClient.getListItems(PERMS_LIST, select, undefined, undefined, 999);
+
+  const target = items.find((it: any) => {
+    const f = it?.fields || {};
+    const title = String(f.Title || "").toLowerCase().trim();
+    return title === upn.toLowerCase().trim();
+  });
+
+  if (!target) {
+    return { found: false, isSystemAdmin: false, permisos: normalizePerms() };
+  }
+
+  const f = target.fields || {};
+
+  // Si está inactivo, lo tratamos como sin permisos (tú decides si quieres otra lógica)
+  const estado = String(f.USR_ESTADO || "").toLowerCase().trim();
+  const inactive = estado === "inactivo";
+
+  const isSys = Boolean(f.USR_IS_SYSTEM_ADMIN) && !inactive;
+
+  const permisos = inactive
+    ? normalizePerms()
+    : normalizePerms({
+        rrhh: ensureArrayStrings(f.PERM_RRHH),
+        administradores: ensureArrayStrings(f.PERM_ADMINISTRADORES),
+        osp: ensureArrayStrings(f.PERM_OSP),
+        usuarios: ensureArrayStrings(f.PERM_USUARIOS),
+      });
+
+  return { found: true, isSystemAdmin: isSys, permisos };
 }
 
 export function SharePointAuthProvider({ children }: { children: ReactNode }) {
@@ -120,42 +157,6 @@ export function SharePointAuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const computeSystemAdmin = (profile: any) => {
-    const jobTitle = (profile?.jobTitle as string | undefined) || "";
-    const upn = ((profile?.userPrincipalName as string | undefined) || "")
-      .toLowerCase()
-      .trim();
-
-    // Heurística conservadora (la que ya tenías)
-    const byTitle =
-      jobTitle.toLowerCase().includes("admin") ||
-      jobTitle.toLowerCase().includes("jefe");
-
-    // Lista explícita (más confiable)
-    const byList = upn && SYSTEM_ADMIN_UPNS.includes(upn);
-
-    return Boolean(byTitle || byList);
-  };
-
-  const defaultPermisosFor = (systemAdmin: boolean): Permisos => {
-    // Base: todos lectura; usuarios depende si es admin
-    return {
-      rrhh: ["lectura"],
-      administradores: ["lectura"],
-      osp: ["lectura"],
-      usuarios: systemAdmin ? ["lectura", "escritura", "administracion"] : ["lectura"],
-    };
-  };
-
-  const mergePermisos = (base: Permisos, override?: Permisos): Permisos => {
-    const out: Permisos = { ...base };
-    if (!override) return out;
-    for (const k of Object.keys(override)) {
-      out[k] = Array.isArray(override[k]) ? override[k] : [];
-    }
-    return out;
-  };
-
   const loadUserProfile = async (account: AccountInfo) => {
     try {
       const token = await coreGetAccessToken();
@@ -173,17 +174,37 @@ export function SharePointAuthProvider({ children }: { children: ReactNode }) {
 
       const profile = await response.json();
 
-      const systemAdmin = computeSystemAdmin(profile);
-      setIsSystemAdmin(systemAdmin);
+      const upn = String(profile.userPrincipalName || "").toLowerCase().trim();
+      const jobTitle = String(profile.jobTitle || "");
+      const byTitle =
+        jobTitle.toLowerCase().includes("admin") ||
+        jobTitle.toLowerCase().includes("jefe");
+      const byList = upn && SYSTEM_ADMIN_UPNS.includes(upn);
 
-      const basePermisos = defaultPermisosFor(systemAdmin);
+      // 1) Intentamos permisos reales desde SharePoint
+      let spFound = false;
+      let spIsSys = false;
+      let spPerms: Permisos = normalizePerms();
 
-      // Override desde localStorage (si existe)
-      const upn = (profile.userPrincipalName as string).toLowerCase().trim();
-      const store = readPermissionsStore();
-      const overridePerms = store[upn] ? normalizePermisos(store[upn]) : undefined;
+      try {
+        const sp = await fetchPermsFromSharePoint(upn);
+        spFound = sp.found;
+        spIsSys = sp.isSystemAdmin;
+        spPerms = sp.permisos;
+      } catch (e) {
+        console.warn("No se pudo leer permisos desde SharePoint (se usa fallback):", e);
+      }
 
-      const permisosFinal = mergePermisos(basePermisos, overridePerms);
+      // 2) Si hay registro en SP, manda SP.
+      // 3) Si no hay registro, fallback conservador: lectura en todo + admin en usuarios si corresponde.
+      const fallbackIsSys = Boolean(byTitle || byList);
+      const finalIsSys = spFound ? spIsSys : fallbackIsSys;
+
+      const permisosFinal = spFound
+        ? spPerms
+        : defaultPermisos(fallbackIsSys);
+
+      setIsSystemAdmin(finalIsSys);
 
       const userData: SharePointUser = {
         id: profile.id,
@@ -231,9 +252,7 @@ export function SharePointAuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const getAccessToken = async () => {
-    return coreGetAccessToken();
-  };
+  const getAccessToken = async () => coreGetAccessToken();
 
   const hasPermission = (module: string, level: string) => {
     if (!user) return false;
@@ -245,13 +264,9 @@ export function SharePointAuthProvider({ children }: { children: ReactNode }) {
   const canWrite = (module: string) => hasPermission(module, "escritura");
   const canAdmin = (module: string) => hasPermission(module, "administracion");
 
-  // helpers para módulo Usuarios (admin del sistema)
-  const getStoredPermissions = () => readPermissionsStore();
-  const saveStoredPermissions = (all: Record<string, Permisos>) =>
-    writePermissionsStore(all);
-
   const reloadPermissions = async () => {
-    const active = msalInstance.getActiveAccount() ?? msalInstance.getAllAccounts()[0];
+    const active =
+      msalInstance.getActiveAccount() ?? msalInstance.getAllAccounts()[0];
     if (active) {
       await loadUserProfile(active as AccountInfo);
     }
@@ -271,8 +286,6 @@ export function SharePointAuthProvider({ children }: { children: ReactNode }) {
         canWrite,
         canAdmin,
         isSystemAdmin,
-        getStoredPermissions,
-        saveStoredPermissions,
         reloadPermissions,
       }}
     >
