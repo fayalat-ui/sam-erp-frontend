@@ -1,18 +1,21 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useSharePointAuth } from "@/contexts/SharePointAuthContext";
+import { sharePointClient } from "@/lib/sharepoint";
 import { Shield, Save, Plus, Trash2, RefreshCw } from "lucide-react";
 
 type Permisos = Record<string, string[]>;
 
+const PERMS_LIST = "TBL_USUARIOS_PERMISOS";
+
 const MODULES = [
-  { key: "rrhh", label: "RRHH" },
-  { key: "administradores", label: "Administradores" },
-  { key: "osp", label: "OSP" },
-  { key: "usuarios", label: "Usuarios" },
+  { key: "rrhh", label: "RRHH", spField: "PERM_RRHH" },
+  { key: "administradores", label: "Administradores", spField: "PERM_ADMINISTRADORES" },
+  { key: "osp", label: "OSP", spField: "PERM_OSP" },
+  { key: "usuarios", label: "Usuarios", spField: "PERM_USUARIOS" },
 ] as const;
 
 const LEVELS = [
@@ -21,57 +24,110 @@ const LEVELS = [
   { key: "administracion", label: "Administración" },
 ] as const;
 
+function ensureArrayStrings(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x) => typeof x === "string") as string[];
+  if (typeof v === "string" && v.trim()) return [v.trim()];
+  return [];
+}
+
 function ensurePermsShape(p?: Permisos): Permisos {
   const out: Permisos = {};
   for (const m of MODULES) out[m.key] = [];
   if (!p) return out;
-  for (const k of Object.keys(out)) {
-    out[k] = Array.isArray(p[k]) ? (p[k] as string[]) : [];
-  }
+  for (const m of MODULES) out[m.key] = Array.isArray(p[m.key]) ? p[m.key] : [];
   return out;
 }
 
+type PermItem = {
+  itemId: string; // ID del item en lista SP
+  upn: string; // fields.Title
+  isSystemAdmin: boolean; // fields.USR_IS_SYSTEM_ADMIN
+  perms: Permisos; // desde PERM_*
+  estado?: string; // fields.USR_ESTADO
+};
+
 export default function Usuarios() {
-  const {
-    user,
-    isSystemAdmin,
-    getStoredPermissions,
-    saveStoredPermissions,
-    reloadPermissions,
-  } = useSharePointAuth();
+  const { user, isSystemAdmin, reloadPermissions } = useSharePointAuth();
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [items, setItems] = useState<PermItem[]>([]);
+  const [selectedUpn, setSelectedUpn] = useState<string>("");
+  const [selectedItemId, setSelectedItemId] = useState<string>("");
 
   const [newUpn, setNewUpn] = useState("");
-  const [selectedUpn, setSelectedUpn] = useState<string>("");
 
-  const store = useMemo(() => getStoredPermissions(), [getStoredPermissions]);
+  const [draftPerms, setDraftPerms] = useState<Permisos>(() => ensurePermsShape());
+  const [draftIsSys, setDraftIsSys] = useState(false);
 
-  const allUsers = useMemo(() => {
-    const keys = Object.keys(store).sort();
-    return keys;
-  }, [store]);
+  const selected = useMemo(() => {
+    const upn = selectedUpn.toLowerCase().trim();
+    return items.find((x) => x.upn.toLowerCase().trim() === upn) || null;
+  }, [items, selectedUpn]);
 
-  const currentPerms = useMemo(() => {
-    const upn = (selectedUpn || "").toLowerCase().trim();
-    return ensurePermsShape(store[upn]);
-  }, [store, selectedUpn]);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const select =
+        "Title,USR_IS_SYSTEM_ADMIN,USR_ESTADO,PERM_RRHH,PERM_ADMINISTRADORES,PERM_OSP,PERM_USUARIOS";
+      const res = await sharePointClient.getListItems(PERMS_LIST, select, undefined, undefined, 999);
 
-  const [draft, setDraft] = useState<Permisos>(() =>
-    ensurePermsShape(store[selectedUpn])
-  );
+      const mapped: PermItem[] = (res || []).map((it: any) => {
+        const f = it.fields || {};
+        const perms: Permisos = ensurePermsShape({
+          rrhh: ensureArrayStrings(f.PERM_RRHH),
+          administradores: ensureArrayStrings(f.PERM_ADMINISTRADORES),
+          osp: ensureArrayStrings(f.PERM_OSP),
+          usuarios: ensureArrayStrings(f.PERM_USUARIOS),
+        });
 
-  // sincroniza draft al cambiar selectedUpn
-  useMemo(() => {
-    setDraft(ensurePermsShape(store[(selectedUpn || "").toLowerCase().trim()]));
+        return {
+          itemId: String(it.id),
+          upn: String(f.Title || ""),
+          isSystemAdmin: Boolean(f.USR_IS_SYSTEM_ADMIN),
+          estado: f.USR_ESTADO ? String(f.USR_ESTADO) : undefined,
+          perms,
+        };
+      });
+
+      mapped.sort((a, b) => a.upn.localeCompare(b.upn));
+      setItems(mapped);
+
+      // Mantener selección si existe
+      if (selectedUpn) {
+        const still = mapped.find((x) => x.upn.toLowerCase() === selectedUpn.toLowerCase());
+        if (!still) {
+          setSelectedUpn("");
+          setSelectedItemId("");
+          setDraftPerms(ensurePermsShape());
+          setDraftIsSys(false);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isSystemAdmin) void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedUpn]);
+  }, [isSystemAdmin]);
+
+  useEffect(() => {
+    if (!selected) return;
+    setSelectedItemId(selected.itemId);
+    setDraftPerms(ensurePermsShape(selected.perms));
+    setDraftIsSys(Boolean(selected.isSystemAdmin));
+  }, [selected]);
 
   const toggle = (moduleKey: string, levelKey: string) => {
-    setDraft((prev) => {
+    setDraftPerms((prev) => {
       const next = { ...prev };
-      const arr = new Set(next[moduleKey] || []);
-      if (arr.has(levelKey)) arr.delete(levelKey);
-      else arr.add(levelKey);
-      next[moduleKey] = Array.from(arr);
+      const set = new Set(next[moduleKey] || []);
+      if (set.has(levelKey)) set.delete(levelKey);
+      else set.add(levelKey);
+      next[moduleKey] = Array.from(set);
       return next;
     });
   };
@@ -84,43 +140,92 @@ export default function Usuarios() {
       return;
     }
 
-    const nextAll = { ...store };
-    if (!nextAll[upn]) {
-      nextAll[upn] = ensurePermsShape();
-      saveStoredPermissions(nextAll);
-    }
-    setSelectedUpn(upn);
-    setNewUpn("");
-  };
-
-  const removeUser = (upn: string) => {
-    const ok = confirm(`Eliminar configuración de permisos para:\n\n${upn}\n\n¿Confirmas?`);
-    if (!ok) return;
-
-    const nextAll = { ...store };
-    delete nextAll[upn];
-    saveStoredPermissions(nextAll);
-    if (selectedUpn === upn) setSelectedUpn("");
-  };
-
-  const save = async () => {
-    const upn = (selectedUpn || "").toLowerCase().trim();
-    if (!upn) {
-      alert("Selecciona un usuario.");
+    // Si ya existe, lo seleccionamos
+    const existing = items.find((x) => x.upn.toLowerCase().trim() === upn);
+    if (existing) {
+      setSelectedUpn(existing.upn);
       return;
     }
 
-    const nextAll = { ...store };
-    nextAll[upn] = ensurePermsShape(draft);
-    saveStoredPermissions(nextAll);
+    // Nueva selección “pendiente de guardar”
+    setSelectedUpn(upn);
+    setSelectedItemId(""); // no existe aún
+    setDraftPerms(ensurePermsShape());
+    setDraftIsSys(false);
+    setNewUpn("");
+  };
 
-    // si estás editando TU propio UPN, refresca permisos altiro
-    const myUpn = (user?.userPrincipalName || "").toLowerCase().trim();
-    if (myUpn && myUpn === upn) {
-      await reloadPermissions();
+  const save = async () => {
+    const upn = selectedUpn.toLowerCase().trim();
+    if (!upn) {
+      alert("Selecciona o agrega un usuario (UPN).");
+      return;
     }
 
-    alert("Permisos guardados (temporal en este navegador).");
+    setSaving(true);
+    try {
+      const fields: Record<string, unknown> = {
+        Title: upn,
+        USR_IS_SYSTEM_ADMIN: Boolean(draftIsSys),
+      };
+
+      // Guardamos los permisos en las columnas PERM_*
+      for (const m of MODULES) {
+        fields[m.spField] = draftPerms[m.key] || [];
+      }
+
+      if (selectedItemId) {
+        await sharePointClient.updateListItem(PERMS_LIST, selectedItemId, fields);
+      } else {
+        const created: any = await sharePointClient.createListItem(PERMS_LIST, fields);
+        // createListItem retorna item; su id viene arriba
+        const newId = String(created?.id || "");
+        setSelectedItemId(newId);
+      }
+
+      await load();
+
+      // Si editaste tu propio UPN, recarga permisos en sesión
+      const myUpn = (user?.userPrincipalName || "").toLowerCase().trim();
+      if (myUpn && myUpn === upn) {
+        await reloadPermissions();
+      }
+
+      alert("Permisos guardados en SharePoint.");
+    } catch (e: any) {
+      console.error(e);
+      alert("Error guardando permisos: " + (e?.message || "desconocido"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!selectedItemId) {
+      alert("Este usuario aún no está guardado en SharePoint.");
+      return;
+    }
+
+    const ok = confirm(
+      `Eliminar configuración de permisos para:\n\n${selectedUpn}\n\n¿Confirmas?`
+    );
+    if (!ok) return;
+
+    setSaving(true);
+    try {
+      await sharePointClient.deleteListItem(PERMS_LIST, selectedItemId);
+      setSelectedUpn("");
+      setSelectedItemId("");
+      setDraftPerms(ensurePermsShape());
+      setDraftIsSys(false);
+      await load();
+      alert("Registro eliminado.");
+    } catch (e: any) {
+      console.error(e);
+      alert("Error eliminando: " + (e?.message || "desconocido"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!isSystemAdmin) {
@@ -133,9 +238,7 @@ export default function Usuarios() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-gray-600">
-            No tienes permisos para administrar usuarios.
-          </p>
+          <p className="text-gray-600">No tienes permisos para administrar usuarios.</p>
           <div className="mt-3">
             <Badge variant="outline">Acceso restringido</Badge>
           </div>
@@ -144,17 +247,23 @@ export default function Usuarios() {
     );
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Usuarios</h1>
         <p className="text-gray-600">
-          Módulo de permisos (temporal). Luego lo movemos a una lista SharePoint.
+          Permisos por usuario guardados en SharePoint ({PERMS_LIST})
         </p>
       </div>
 
-      {/* Alta rápida */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -169,53 +278,36 @@ export default function Usuarios() {
             placeholder="usuario@empresa.cl"
           />
           <Button onClick={addUser}>Agregar</Button>
+          <Button variant="outline" onClick={() => load()} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Recargar
+          </Button>
         </CardContent>
       </Card>
 
-      {/* Selector + permisos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Lista */}
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Usuarios configurados</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {allUsers.length === 0 ? (
-              <p className="text-gray-500 text-sm">
-                Aún no hay usuarios configurados.
-              </p>
+            {items.length === 0 ? (
+              <p className="text-gray-500 text-sm">Aún no hay usuarios configurados.</p>
             ) : (
-              allUsers.map((upn) => (
+              items.map((u) => (
                 <div
-                  key={upn}
+                  key={u.itemId}
                   className={`p-3 border rounded cursor-pointer ${
-                    selectedUpn === upn ? "bg-gray-50" : "hover:bg-gray-50"
+                    selectedUpn.toLowerCase() === u.upn.toLowerCase()
+                      ? "bg-gray-50"
+                      : "hover:bg-gray-50"
                   }`}
-                  onClick={() => setSelectedUpn(upn)}
+                  onClick={() => setSelectedUpn(u.upn)}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-medium truncate">{upn}</div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeUser(upn);
-                      }}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <div className="text-sm font-medium truncate">{u.upn}</div>
                   <div className="mt-2 flex flex-wrap gap-1">
-                    {MODULES.map((m) => {
-                      const lvls = (store[upn]?.[m.key] || []).join(", ");
-                      return (
-                        <Badge key={m.key} variant="outline">
-                          {m.label}: {lvls || "—"}
-                        </Badge>
-                      );
-                    })}
+                    {u.isSystemAdmin && <Badge variant="outline">SYS ADMIN</Badge>}
+                    {u.estado && <Badge variant="outline">{u.estado}</Badge>}
                   </div>
                 </div>
               ))
@@ -223,23 +315,25 @@ export default function Usuarios() {
           </CardContent>
         </Card>
 
-        {/* Editor */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center justify-between gap-2">
               <span>Permisos</span>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => reloadPermissions()}
-                  className="gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Recargar sesión
-                </Button>
-                <Button onClick={save} className="gap-2">
+                {selectedUpn && (
+                  <Button
+                    variant="outline"
+                    onClick={remove}
+                    disabled={saving}
+                    className="gap-2 text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Eliminar
+                  </Button>
+                )}
+                <Button onClick={save} disabled={saving} className="gap-2">
                   <Save className="h-4 w-4" />
-                  Guardar
+                  {saving ? "Guardando..." : "Guardar"}
                 </Button>
               </div>
             </CardTitle>
@@ -247,9 +341,7 @@ export default function Usuarios() {
 
           <CardContent>
             {!selectedUpn ? (
-              <p className="text-gray-500">
-                Selecciona un usuario para editar permisos.
-              </p>
+              <p className="text-gray-500">Selecciona un usuario o agrega uno por UPN.</p>
             ) : (
               <div className="space-y-6">
                 <div className="text-sm">
@@ -257,21 +349,37 @@ export default function Usuarios() {
                   <div className="font-medium">{selectedUpn}</div>
                 </div>
 
+                <div className="border rounded p-4">
+                  <div className="font-semibold mb-3">Administrador del sistema</div>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setDraftIsSys((v) => !v)}
+                      className={`px-3 py-2 rounded border text-sm ${
+                        draftIsSys ? "bg-gray-900 text-white" : "bg-white hover:bg-gray-50"
+                      }`}
+                    >
+                      {draftIsSys ? "Sí (SYS ADMIN)" : "No"}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    SYS ADMIN puede administrar permisos y el módulo Usuarios.
+                  </p>
+                </div>
+
                 {MODULES.map((m) => (
                   <div key={m.key} className="border rounded p-4">
                     <div className="font-semibold mb-3">{m.label}</div>
                     <div className="flex flex-wrap gap-2">
                       {LEVELS.map((lvl) => {
-                        const checked = (draft[m.key] || []).includes(lvl.key);
+                        const checked = (draftPerms[m.key] || []).includes(lvl.key);
                         return (
                           <button
                             key={lvl.key}
                             type="button"
                             onClick={() => toggle(m.key, lvl.key)}
                             className={`px-3 py-2 rounded border text-sm ${
-                              checked
-                                ? "bg-gray-900 text-white"
-                                : "bg-white hover:bg-gray-50"
+                              checked ? "bg-gray-900 text-white" : "bg-white hover:bg-gray-50"
                             }`}
                           >
                             {lvl.label}
@@ -283,8 +391,8 @@ export default function Usuarios() {
                 ))}
 
                 <div className="text-xs text-gray-500">
-                  Nota: por ahora esto se guarda en <b>este navegador</b> (localStorage).
-                  Después lo pasamos a SharePoint (lista de permisos) sin cambiar la UI.
+                  Consejo práctico: empieza con <b>lectura</b> y sube a escritura/admin solo donde corresponda.
+                  Un ERP con permisos flojos es básicamente “Wikipedia con sueldos”.
                 </div>
               </div>
             )}
@@ -292,7 +400,6 @@ export default function Usuarios() {
         </Card>
       </div>
 
-      {/* Debug del usuario actual */}
       <Card>
         <CardHeader>
           <CardTitle>Tu sesión</CardTitle>
@@ -300,13 +407,6 @@ export default function Usuarios() {
         <CardContent className="text-sm space-y-2">
           <div><b>Nombre:</b> {user?.displayName || "-"}</div>
           <div><b>UPN:</b> {user?.userPrincipalName || "-"}</div>
-          <div className="flex flex-wrap gap-2">
-            {MODULES.map((m) => (
-              <Badge key={m.key} variant="outline">
-                {m.label}: {(user?.permisos?.[m.key] || []).join(", ") || "—"}
-              </Badge>
-            ))}
-          </div>
         </CardContent>
       </Card>
     </div>
