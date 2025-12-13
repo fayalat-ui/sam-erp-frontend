@@ -129,11 +129,7 @@ class SharePointClient {
       .post({ fields });
   }
 
-  async updateListItem(
-    listName: string,
-    itemId: string,
-    fields: Record<string, any>
-  ) {
+  async updateListItem(listName: string, itemId: string, fields: Record<string, any>) {
     await this.ensureSite();
     const listId = await this.resolveListId(listName);
 
@@ -149,6 +145,23 @@ class SharePointClient {
     await this.client
       .api(`/sites/${this.siteId}/lists/${listId}/items/${itemId}`)
       .delete();
+  }
+
+  /**
+   * ✅ CRÍTICO: obtener columnas de una lista (internal name + displayName)
+   * Esto permite mapear automáticamente displayName => internal name
+   * y evitar errores tipo: "Field 'Email_PERSONAL' is not recognized"
+   */
+  async getListColumns(listName: string): Promise<any[]> {
+    await this.ensureSite();
+    const listId = await this.resolveListId(listName);
+
+    const res = await this.client
+      .api(`/sites/${this.siteId}/lists/${listId}/columns`)
+      .top(999)
+      .get();
+
+    return res?.value ?? [];
   }
 }
 
