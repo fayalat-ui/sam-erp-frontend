@@ -58,12 +58,29 @@ function pickField(item: any, candidates: string[]) {
 }
 
 /** =========================
- *  LECTURAS BÁSICAS
+ *  TRABAJADORES
  *  ========================= */
 
 export async function getTrabajadores() {
   return sharePointClient.getListItems("TBL_TRABAJADORES");
 }
+
+export async function getTrabajadorById(id: string | number) {
+  const items = await sharePointClient.getListItems("TBL_TRABAJADORES");
+  const found = (items as any[]).find(
+    (it) => String(it.id) === String(id)
+  );
+
+  if (!found) {
+    throw new Error("Trabajador no encontrado");
+  }
+
+  return found;
+}
+
+/** =========================
+ *  SERVICIOS
+ *  ========================= */
 
 export async function getServicios() {
   return sharePointClient.getListItems("TBL_SERVICIOS");
