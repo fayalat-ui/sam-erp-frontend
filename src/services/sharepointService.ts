@@ -9,68 +9,27 @@ import { sharePointClient } from "../lib/sharepoint";
  *  TRABAJADORES (CRUD)
  *  ========================= */
 
-// Lectura lista
 export async function getTrabajadores() {
   return sharePointClient.getListItems("TBL_TRABAJADORES");
 }
 
-// Lectura por ID
 export async function getTrabajadorById(id: string | number) {
-  // Usamos getListItems + filter por id si tu cliente no tiene getById dedicado.
-  // Pero como ya tienes getTrabajadorById en otro lado, mantenemos compatibilidad:
-  // 👉 Si ya lo tienes implementado en otro archivo, puedes borrar este y seguir usando el tuyo.
+  // Implementación simple: trae lista y filtra por id.
+  // (Si luego quieres optimizar, lo hacemos con endpoint directo)
   const items = await sharePointClient.getListItems("TBL_TRABAJADORES");
-  const found = items.find((it: any) => String(it.id) === String(id));
+  const found = (items as any[]).find((it) => String(it.id) === String(id));
   if (!found) throw new Error("Trabajador no encontrado");
   return found;
 }
 
-/**
- * Crear trabajador (mínimo viable, conservador)
- * IMPORTANTE:
- * - SharePoint te exige algunas columnas dependiendo de tu configuración.
- * - Aquí mandamos solo campos seguros. Title lo mandamos por si acaso (muchas listas lo piden).
- */
 export async function createTrabajador(fields: {
-  // Identidad
   Nombres?: string;
   Apellidos?: string;
-  T_documento?: string;
   N_documento?: string;
-  NACIMIENTO?: string; // "YYYY-MM-DD" recomendado
-  Nacionalidad?: string;
-  GENERO?: string;
-  Estado_civil?: string;
-
-  // Contacto
   Email_Empresa?: string;
-  Email_PERSONAL?: string;
-  Celular?: string;
-  DIRECCION_ANTIGUA?: string;
-  Ciudad?: string;
-
-  // Emergencia
-  Contacto_Emergencia?: string;
-  Telefono_Emergencia?: string;
-
-  // Laboral
   Estado?: string;
-  ROL?: string;
-  Profesion?: string;
-  Nivel_educativo?: string;
-  Inscripcion_militar?: string;
-
-  // Pago
-  BANCO_PAGO?: string;
-  TIPO_CUENTA_PAGO?: string;
-  NUMERO_CUENTA_PAGO?: string;
-  TITULAR_CUENTA_PAGO?: string;
-
-  // Otros
-  Notas?: string;
+  NACIMIENTO?: string; // YYYY-MM-DD
 }) {
-  // Muchos SharePoint list templates traen "Title". En tu lista existe "Título".
-  // Como tú no lo muestras, lo completamos sin molestar: Nombre + Apellido o RUT.
   const title =
     `${fields.Nombres ?? ""} ${fields.Apellidos ?? ""}`.trim() ||
     fields.N_documento ||
