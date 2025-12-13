@@ -1,8 +1,8 @@
 import { sharePointClient } from "../lib/sharepoint";
 
 /**
- * Servicio central de SharePoint
- * Fuente única de datos para toda la app
+ * Servicio central SharePoint
+ * Fuente única de datos
  */
 
 /** =========================
@@ -18,6 +18,11 @@ export type DashboardCounts = {
   servicios: {
     activos: number;
     terminados: number;
+  };
+  contratos: {
+    solicitados: number;
+    enviadosARevisar: number;
+    rechazados: number;
   };
 };
 
@@ -42,23 +47,19 @@ function pickField(item: any, candidates: string[]) {
   const fields = item?.fields;
   if (!fields) return undefined;
 
-  // Exacto
   for (const name of candidates) {
     if (fields[name] !== undefined) return fields[name];
   }
 
-  // Case-insensitive
   const keys = Object.keys(fields);
+
   for (const name of candidates) {
     const k = keys.find((x) => x.toLowerCase() === name.toLowerCase());
     if (k) return fields[k];
   }
 
-  // Parcial (SharePoint interno)
   for (const name of candidates) {
-    const k = keys.find((x) =>
-      x.toLowerCase().includes(name.toLowerCase())
-    );
+    const k = keys.find((x) => x.toLowerCase().includes(name.toLowerCase()));
     if (k) return fields[k];
   }
 
@@ -66,7 +67,7 @@ function pickField(item: any, candidates: string[]) {
 }
 
 /** =========================
- *  TRABAJADORES (CRUD)
+ *  TRABAJADORES
  *  ========================= */
 
 export async function getTrabajadores() {
@@ -104,7 +105,7 @@ export async function deleteTrabajador(id: string | number) {
 }
 
 /** =========================
- *  SERVICIOS (LECTURA)
+ *  SERVICIOS
  *  ========================= */
 
 export async function getServicios() {
@@ -112,7 +113,15 @@ export async function getServicios() {
 }
 
 /** =========================
- *  OTRAS LISTAS (LECTURA)
+ *  SOLICITUDES DE CONTRATO
+ *  ========================= */
+
+export async function getSolicitudesContrato() {
+  return sharePointClient.getListItems("SOLICITUD_CONTRATOS");
+}
+
+/** =========================
+ *  OTRAS LISTAS
  *  ========================= */
 
 export async function getMandantes() {
@@ -127,22 +136,19 @@ export async function getDirectivas() {
   return sharePointClient.getListItems("TBL_DIRECTIVAS");
 }
 
-export async function getSolicitudesContrato() {
-  return sharePointClient.getListItems("SOLICITUD_CONTRATOS");
-}
-
 export async function getCursosOS10() {
   return sharePointClient.getListItems("TBL_REGISTRO_CURSO_OS10");
 }
 
 /** =========================
- *  DASHBOARD – TRABAJADORES + SERVICIOS
+ *  DASHBOARD – PASO 3
  *  ========================= */
 
 export async function getDashboardCounts(): Promise<DashboardCounts> {
-  const [trabajadores, servicios] = await Promise.all([
+  const [trabajadores, servicios, contratos] = await Promise.all([
     getTrabajadores(),
     getServicios(),
+    getSolicitudesContrato(),
   ]);
 
   // ---- TRABAJADORES
@@ -151,9 +157,7 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
   let tListaNegra = 0;
 
   (trabajadores as SpItem[]).forEach((item) => {
-    const estado = normalizeChoice(
-      pickField(item, ["Estado", "ESTADO"])
-    );
+    const estado = normalizeChoice(pickField(item, ["Estado", "ESTADO"]));
 
     if (estado === "ACTIVO") tActivos++;
     else if (estado === "DESVINCULADO") tDesvinculados++;
@@ -165,12 +169,23 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
   let sTerminados = 0;
 
   (servicios as SpItem[]).forEach((item) => {
-    const estado = normalizeChoice(
-      pickField(item, ["ESTADO", "Estado"])
-    );
+    const estado = normalizeChoice(pickField(item, ["Estado", "ESTADO"]));
 
     if (estado === "ACTIVO") sActivos++;
     else if (estado === "TERMINADO") sTerminados++;
+  });
+
+  // ---- CONTRATOS
+  let cSolicitados = 0;
+  let cRevisar = 0;
+  let cRechazados = 0;
+
+  (contratos as SpItem[]).forEach((item) => {
+    const estado = normalizeChoice(pickField(item, ["Estado", "ESTADO"]));
+
+    if (estado === "CONTRATO SOLICITADO") cSolicitados++;
+    else if (estado === "ENVIADO A REVISAR") cRevisar++;
+    else if (estado === "RECHAZADO") cRechazados++;
   });
 
   return {
@@ -182,6 +197,11 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
     servicios: {
       activos: sActivos,
       terminados: sTerminados,
+    },
+    contratos: {
+      solicitados: cSolicitados,
+      enviadosARevisar: cRevisar,
+      rechazados: cRechazados,
     },
   };
 }
