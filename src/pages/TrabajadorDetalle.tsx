@@ -135,3 +135,121 @@ export default function TrabajadorDetalle() {
   }
 
   return (
+    <div className="space-y-6">
+      {/* Volver */}
+      <Button variant="outline" onClick={() => navigate("/trabajadores")}>
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Volver a Trabajadores
+      </Button>
+
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {data.NOMNRE_COMPLETO || "Trabajador"}
+        </h1>
+        <div className="mt-1">
+          {data.Estado ? (
+            <Badge variant="outline">{data.Estado}</Badge>
+          ) : (
+            <Badge variant="secondary">Sin estado</Badge>
+          )}
+        </div>
+      </div>
+
+      {/* DATOS PERSONALES */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Datos personales
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4 text-sm">
+          <p><b>Nombres:</b> {data.Nombres || "-"}</p>
+          <p><b>Apellidos:</b> {data.Apellidos || "-"}</p>
+          <p><b>Documento:</b> {data.N_documento || "-"}</p>
+          <p><b>Tipo:</b> {data.T_documento || "-"}</p>
+          <p><b>Nacimiento:</b> {formatFecha(data.NACIMIENTO)}</p>
+          <p><b>Nacionalidad:</b> {data.Nacionalidad || "-"}</p>
+          <p><b>Género:</b> {data.GENERO || "-"}</p>
+          <p><b>Estado civil:</b> {data.Estado_civil || "-"}</p>
+        </CardContent>
+      </Card>
+
+      {/* CONTACTO */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Contacto
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4 text-sm">
+          <p><b>Email empresa:</b> {data.Email_Empresa || "-"}</p>
+          <p><b>Email personal:</b> {data.Email_PERSONAL || "-"}</p>
+          <p><b>Celular:</b> {data.Celular || "-"}</p>
+          <p><b>Dirección:</b> {data.DIRECCION_ANTIGUA || "-"}</p>
+          <p><b>Ciudad:</b> {data.Ciudad || "-"}</p>
+        </CardContent>
+      </Card>
+
+      {/* EMERGENCIA */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            Contacto de emergencia
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4 text-sm">
+          <p><b>Contacto:</b> {data.Contacto_Emergencia || "-"}</p>
+          <p><b>Teléfono:</b> {data.Telefono_Emergencia || "-"}</p>
+        </CardContent>
+      </Card>
+
+      {/* LABORAL */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Briefcase className="h-5 w-5" />
+            Información laboral
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4 text-sm">
+          <p><b>Rol:</b> {data.ROL || "-"}</p>
+          <p><b>Profesión:</b> {data.Profesion || "-"}</p>
+          <p><b>Nivel educativo:</b> {data.Nivel_educativo || "-"}</p>
+          <p><b>Inscripción militar:</b> {data.Inscripcion_militar || "-"}</p>
+        </CardContent>
+      </Card>
+
+      {/* PAGO */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            Datos de pago
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4 text-sm">
+          <p><b>Banco:</b> {data.BANCO_PAGO || "-"}</p>
+          <p><b>Tipo cuenta:</b> {data.TIPO_CUENTA_PAGO || "-"}</p>
+          <p><b>N° cuenta:</b> {data.NUMERO_CUENTA_PAGO || "-"}</p>
+          <p><b>Titular:</b> {data.TITULAR_CUENTA_PAGO || "-"}</p>
+        </CardContent>
+      </Card>
+
+      {/* NOTAS */}
+      {data.Notas && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Notas</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm whitespace-pre-wrap">
+            {data.Notas}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
