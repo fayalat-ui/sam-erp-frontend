@@ -1,17 +1,12 @@
-import { createRoot } from "react-dom/client";
+import React from "react";
+import ReactDOM from "react-dom/client";
 import App from "./App";
-import { msalInstance } from "./auth/msalInstance";
 
-(async () => {
-  await msalInstance.initialize();
+// ✅ ESTO ES LO QUE HOY TE FALTA EN PRODUCCIÓN (o está apuntando a otro CSS)
+import "./index.css";
 
-  const result = await msalInstance.handleRedirectPromise();
-  if (result?.account) {
-    msalInstance.setActiveAccount(result.account);
-  } else {
-    const accounts = msalInstance.getAllAccounts();
-    if (accounts.length > 0) msalInstance.setActiveAccount(accounts[0]);
-  }
-
-  createRoot(document.getElementById("root")!).render(<App />);
-})();
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
