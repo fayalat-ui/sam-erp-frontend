@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, ArrowRight, CheckCircle } from "lucide-react";
+import {
+  Users,
+  Briefcase,
+  ArrowRight,
+  CheckCircle,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { useSharePointAuth } from "@/contexts/SharePointAuthContext";
 import {
@@ -23,14 +28,19 @@ export default function Dashboard() {
       setCounts(data);
       setLoading(false);
     };
-
     load();
   }, []);
 
-  const activos = counts?.trabajadores.activos ?? 0;
-  const desvinculados = counts?.trabajadores.desvinculados ?? 0;
-  const listaNegra = counts?.trabajadores.listaNegra ?? 0;
-  const total = activos + desvinculados + listaNegra;
+  // Trabajadores
+  const t = counts?.trabajadores;
+  const tTotal =
+    (t?.activos ?? 0) +
+    (t?.desvinculados ?? 0) +
+    (t?.listaNegra ?? 0);
+
+  // Servicios
+  const s = counts?.servicios;
+  const sTotal = (s?.activos ?? 0) + (s?.terminados ?? 0);
 
   const hoy = new Date().toLocaleDateString("es-CL", {
     weekday: "long",
@@ -74,69 +84,84 @@ export default function Dashboard() {
                   </Button>
                 </Link>
               )}
+
+              {canRead("osp") && (
+                <Link to="/servicios">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Briefcase className="h-4 w-4" />
+                    Ver servicios
+                  </Button>
+                </Link>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* KPI TRABAJADORES */}
-        {canRead("rrhh") && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* KPIs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {canRead("rrhh") && (
             <Kpi
+              icon={Users}
               titulo="Trabajadores activos"
-              valor={activos}
-              total={total}
+              valor={t?.activos ?? 0}
+              total={tTotal}
               loading={loading}
               color="blue"
             />
+          )}
+
+          {canRead("osp") && (
             <Kpi
-              titulo="Desvinculados"
-              valor={desvinculados}
-              total={total}
+              icon={Briefcase}
+              titulo="Servicios activos"
+              valor={s?.activos ?? 0}
+              total={sTotal}
               loading={loading}
-              color="orange"
+              color="purple"
             />
-            <Kpi
-              titulo="Lista negra"
-              valor={listaNegra}
-              total={total}
-              loading={loading}
-              color="red"
-            />
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 function Kpi({
+  icon: Icon,
   titulo,
   valor,
   total,
   loading,
   color,
 }: {
+  icon: any;
   titulo: string;
   valor: number;
   total: number;
   loading: boolean;
-  color: "blue" | "orange" | "red";
+  color: "blue" | "purple";
 }) {
   const palette = {
     blue: "border-blue-200 bg-blue-50 text-blue-800",
-    orange: "border-orange-200 bg-orange-50 text-orange-800",
-    red: "border-red-200 bg-red-50 text-red-800",
+    purple: "border-purple-200 bg-purple-50 text-purple-800",
   }[color];
 
   return (
     <Card className={`border ${palette}`}>
       <CardContent className="p-4 space-y-1">
-        <p className="text-xs font-semibold uppercase tracking-wide">
-          {titulo}
-        </p>
+        <div className="flex items-center gap-2">
+          <Icon className="h-4 w-4" />
+          <p className="text-xs font-semibold uppercase tracking-wide">
+            {titulo}
+          </p>
+        </div>
 
         {loading ? (
-          <div className="h-7 w-16 bg-slate-300 animate-pulse rounded" />
+          <div className="h-7 w-20 bg-slate-300 animate-pulse rounded" />
         ) : (
           <p className="text-2xl font-bold">
             {valor}{" "}
