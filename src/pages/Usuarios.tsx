@@ -1,247 +1,312 @@
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useSharePointAuth } from '@/contexts/SharePointAuthContext';
-import { useSharePointData } from '@/hooks/useSharePointData';
-import { usuariosService } from '@/lib/sharepoint-services';
-import { SHAREPOINT_LISTS } from '@/lib/sharepoint-mappings';
-import { Plus, Search, Edit, Trash2, Users, Shield } from 'lucide-react';
+import { useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { useSharePointAuth } from "@/contexts/SharePointAuthContext";
+import { Shield, Save, Plus, Trash2, RefreshCw } from "lucide-react";
 
-interface Usuario {
-  id: string;
-  email: string;
-  nombre: string;
-  rol_id: number;
-  rol_nombre: string;
-  activo: boolean;
-  fecha_creacion: string;
-}
+type Permisos = Record<string, string[]>;
 
-interface Rol {
-  id: number;
-  nombre: string;
-  descripcion: string;
+const MODULES = [
+  { key: "rrhh", label: "RRHH" },
+  { key: "administradores", label: "Administradores" },
+  { key: "osp", label: "OSP" },
+  { key: "usuarios", label: "Usuarios" },
+] as const;
+
+const LEVELS = [
+  { key: "lectura", label: "Lectura" },
+  { key: "escritura", label: "Escritura" },
+  { key: "administracion", label: "Administración" },
+] as const;
+
+function ensurePermsShape(p?: Permisos): Permisos {
+  const out: Permisos = {};
+  for (const m of MODULES) out[m.key] = [];
+  if (!p) return out;
+  for (const k of Object.keys(out)) {
+    out[k] = Array.isArray(p[k]) ? (p[k] as string[]) : [];
+  }
+  return out;
 }
 
 export default function Usuarios() {
-  const { canAdministrate } = useSharePointAuth();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedRole, setSelectedRole] = useState<string>('');
-  
   const {
-    data: usuarios,
-    loading: loadingUsuarios,
-    error: errorUsuarios,
-    refetch: refetchUsuarios,
-    create: createUsuario,
-    update: updateUsuario,
-    remove: removeUsuario
-  } = useSharePointData<Usuario>(usuariosService, {
-    listName: SHAREPOINT_LISTS.USUARIOS,
-    select: 'id,email,nombre,rol_id,rol_nombre,activo,fecha_creacion'
-  });
+    user,
+    isSystemAdmin,
+    getStoredPermissions,
+    saveStoredPermissions,
+    reloadPermissions,
+  } = useSharePointAuth();
 
-  const {
-    data: roles,
-    loading: loadingRoles
-  } = useSharePointData<Rol>(usuariosService, {
-    listName: SHAREPOINT_LISTS.ROLES,
-    select: 'id,nombre,descripcion'
-  });
+  const [newUpn, setNewUpn] = useState("");
+  const [selectedUpn, setSelectedUpn] = useState<string>("");
 
-  const canManage = canAdministrate('usuarios');
+  const store = useMemo(() => getStoredPermissions(), [getStoredPermissions]);
 
-  const filteredUsuarios = usuarios.filter(usuario => {
-    const matchesSearch = usuario.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         usuario.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = !selectedRole || usuario.rol_id.toString() === selectedRole;
-    return matchesSearch && matchesRole;
-  });
+  const allUsers = useMemo(() => {
+    const keys = Object.keys(store).sort();
+    return keys;
+  }, [store]);
 
-  const handleCreate = async () => {
-    // TODO: Implement create modal
-    console.log('Create usuario');
+  const currentPerms = useMemo(() => {
+    const upn = (selectedUpn || "").toLowerCase().trim();
+    return ensurePermsShape(store[upn]);
+  }, [store, selectedUpn]);
+
+  const [draft, setDraft] = useState<Permisos>(() =>
+    ensurePermsShape(store[selectedUpn])
+  );
+
+  // sincroniza draft al cambiar selectedUpn
+  useMemo(() => {
+    setDraft(ensurePermsShape(store[(selectedUpn || "").toLowerCase().trim()]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedUpn]);
+
+  const toggle = (moduleKey: string, levelKey: string) => {
+    setDraft((prev) => {
+      const next = { ...prev };
+      const arr = new Set(next[moduleKey] || []);
+      if (arr.has(levelKey)) arr.delete(levelKey);
+      else arr.add(levelKey);
+      next[moduleKey] = Array.from(arr);
+      return next;
+    });
   };
 
-  const handleEdit = async (usuario: Usuario) => {
-    // TODO: Implement edit modal
-    console.log('Edit usuario:', usuario);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm('¿Estás seguro de que deseas eliminar este usuario?')) {
-      try {
-        await removeUsuario(id);
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-        alert('Error al eliminar usuario: ' + errorMessage);
-      }
+  const addUser = () => {
+    const upn = newUpn.toLowerCase().trim();
+    if (!upn) return;
+    if (!upn.includes("@")) {
+      alert("Ingresa un UPN válido (ej: usuario@empresa.cl).");
+      return;
     }
-  };
 
-  const handleToggleActive = async (usuario: Usuario) => {
-    try {
-      await updateUsuario(usuario.id, { activo: !usuario.activo });
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
-      alert('Error al actualizar usuario: ' + errorMessage);
+    const nextAll = { ...store };
+    if (!nextAll[upn]) {
+      nextAll[upn] = ensurePermsShape();
+      saveStoredPermissions(nextAll);
     }
+    setSelectedUpn(upn);
+    setNewUpn("");
   };
 
-  if (loadingUsuarios || loadingRoles) {
+  const removeUser = (upn: string) => {
+    const ok = confirm(`Eliminar configuración de permisos para:\n\n${upn}\n\n¿Confirmas?`);
+    if (!ok) return;
+
+    const nextAll = { ...store };
+    delete nextAll[upn];
+    saveStoredPermissions(nextAll);
+    if (selectedUpn === upn) setSelectedUpn("");
+  };
+
+  const save = async () => {
+    const upn = (selectedUpn || "").toLowerCase().trim();
+    if (!upn) {
+      alert("Selecciona un usuario.");
+      return;
+    }
+
+    const nextAll = { ...store };
+    nextAll[upn] = ensurePermsShape(draft);
+    saveStoredPermissions(nextAll);
+
+    // si estás editando TU propio UPN, refresca permisos altiro
+    const myUpn = (user?.userPrincipalName || "").toLowerCase().trim();
+    if (myUpn && myUpn === upn) {
+      await reloadPermissions();
+    }
+
+    alert("Permisos guardados (temporal en este navegador).");
+  };
+
+  if (!isSystemAdmin) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Administración de usuarios
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-gray-600">
+            No tienes permisos para administrar usuarios.
+          </p>
+          <div className="mt-3">
+            <Badge variant="outline">Acceso restringido</Badge>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Usuarios</h1>
-          <p className="text-gray-600">Gestión de usuarios del sistema</p>
-        </div>
-        {canManage && (
-          <Button onClick={handleCreate} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Nuevo Usuario
-          </Button>
-        )}
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Usuarios</h1>
+        <p className="text-gray-600">
+          Módulo de permisos (temporal). Luego lo movemos a una lista SharePoint.
+        </p>
       </div>
 
-      {errorUsuarios && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-4">
-            <p className="text-red-800">Error: {errorUsuarios}</p>
-            <Button onClick={refetchUsuarios} variant="outline" size="sm" className="mt-2">
-              Reintentar
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
+      {/* Alta rápida */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Lista de Usuarios ({filteredUsuarios.length})
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Select value={selectedRole} onValueChange={setSelectedRole}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Filtrar por rol" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Todos los roles</SelectItem>
-                  {roles.map((rol) => (
-                    <SelectItem key={rol.id} value={rol.id.toString()}>
-                      {rol.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Buscar usuarios..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-64"
-                />
-              </div>
-            </div>
-          </div>
+          <CardTitle className="flex items-center gap-2">
+            <Plus className="h-5 w-5" />
+            Agregar usuario por UPN
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          {filteredUsuarios.length === 0 ? (
-            <div className="text-center py-8">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">
-                {searchTerm || selectedRole ? 'No se encontraron usuarios' : 'No hay usuarios registrados'}
+        <CardContent className="flex gap-2 items-center">
+          <Input
+            value={newUpn}
+            onChange={(e) => setNewUpn(e.target.value)}
+            placeholder="usuario@empresa.cl"
+          />
+          <Button onClick={addUser}>Agregar</Button>
+        </CardContent>
+      </Card>
+
+      {/* Selector + permisos */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Lista */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle>Usuarios configurados</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {allUsers.length === 0 ? (
+              <p className="text-gray-500 text-sm">
+                Aún no hay usuarios configurados.
               </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 font-medium">Usuario</th>
-                    <th className="text-left py-3 px-4 font-medium">Email</th>
-                    <th className="text-left py-3 px-4 font-medium">Rol</th>
-                    <th className="text-left py-3 px-4 font-medium">Estado</th>
-                    <th className="text-left py-3 px-4 font-medium">Fecha Creación</th>
-                    {canManage && (
-                      <th className="text-left py-3 px-4 font-medium">Acciones</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsuarios.map((usuario) => (
-                    <tr key={usuario.id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                            <Users className="h-4 w-4 text-blue-600" />
-                          </div>
-                          <div className="font-medium">{usuario.nombre}</div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-sm">{usuario.email}</td>
-                      <td className="py-3 px-4">
-                        <Badge variant="outline" className="flex items-center gap-1">
-                          <Shield className="h-3 w-3" />
-                          {usuario.rol_nombre}
+            ) : (
+              allUsers.map((upn) => (
+                <div
+                  key={upn}
+                  className={`p-3 border rounded cursor-pointer ${
+                    selectedUpn === upn ? "bg-gray-50" : "hover:bg-gray-50"
+                  }`}
+                  onClick={() => setSelectedUpn(upn)}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-medium truncate">{upn}</div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeUser(upn);
+                      }}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {MODULES.map((m) => {
+                      const lvls = (store[upn]?.[m.key] || []).join(", ");
+                      return (
+                        <Badge key={m.key} variant="outline">
+                          {m.label}: {lvls || "—"}
                         </Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant={usuario.activo ? "default" : "secondary"}>
-                          {usuario.activo ? "Activo" : "Inactivo"}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-sm">
-                        {usuario.fecha_creacion && new Date(usuario.fecha_creacion).toLocaleDateString()}
-                      </td>
-                      {canManage && (
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEdit(usuario)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleToggleActive(usuario)}
-                              className={usuario.activo ? "text-orange-600" : "text-green-600"}
-                            >
-                              {usuario.activo ? "Desactivar" : "Activar"}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDelete(usuario.id)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Editor */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-2">
+              <span>Permisos</span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => reloadPermissions()}
+                  className="gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Recargar sesión
+                </Button>
+                <Button onClick={save} className="gap-2">
+                  <Save className="h-4 w-4" />
+                  Guardar
+                </Button>
+              </div>
+            </CardTitle>
+          </CardHeader>
+
+          <CardContent>
+            {!selectedUpn ? (
+              <p className="text-gray-500">
+                Selecciona un usuario para editar permisos.
+              </p>
+            ) : (
+              <div className="space-y-6">
+                <div className="text-sm">
+                  <div className="text-gray-500">Editando</div>
+                  <div className="font-medium">{selectedUpn}</div>
+                </div>
+
+                {MODULES.map((m) => (
+                  <div key={m.key} className="border rounded p-4">
+                    <div className="font-semibold mb-3">{m.label}</div>
+                    <div className="flex flex-wrap gap-2">
+                      {LEVELS.map((lvl) => {
+                        const checked = (draft[m.key] || []).includes(lvl.key);
+                        return (
+                          <button
+                            key={lvl.key}
+                            type="button"
+                            onClick={() => toggle(m.key, lvl.key)}
+                            className={`px-3 py-2 rounded border text-sm ${
+                              checked
+                                ? "bg-gray-900 text-white"
+                                : "bg-white hover:bg-gray-50"
+                            }`}
+                          >
+                            {lvl.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                <div className="text-xs text-gray-500">
+                  Nota: por ahora esto se guarda en <b>este navegador</b> (localStorage).
+                  Después lo pasamos a SharePoint (lista de permisos) sin cambiar la UI.
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Debug del usuario actual */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Tu sesión</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm space-y-2">
+          <div><b>Nombre:</b> {user?.displayName || "-"}</div>
+          <div><b>UPN:</b> {user?.userPrincipalName || "-"}</div>
+          <div className="flex flex-wrap gap-2">
+            {MODULES.map((m) => (
+              <Badge key={m.key} variant="outline">
+                {m.label}: {(user?.permisos?.[m.key] || []).join(", ") || "—"}
+              </Badge>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>
