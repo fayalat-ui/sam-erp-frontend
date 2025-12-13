@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/sonner";
 
-// 👇 Este import lo ajusto cuando me pegues el servicio de update
-// import { updateTrabajador } from "@/services/sharepoint/trabajadores";
+import { updateTrabajador } from "@/services/sharepoint/trabajadores";
 
 type WorkerLike = Record<string, any>;
 
@@ -22,6 +21,8 @@ export function WorkerEditDialog({ open, onOpenChange, worker, trabajadorId, onS
 
   const initial = useMemo(() => {
     return {
+      Nombres: worker?.Nombres ?? "",
+      Apellidos: worker?.Apellidos ?? "",
       N_documento: worker?.N_documento ?? "",
       Email_Empresa: worker?.Email_Empresa ?? "",
       Email_PERSONAL: worker?.Email_PERSONAL ?? "",
@@ -30,8 +31,6 @@ export function WorkerEditDialog({ open, onOpenChange, worker, trabajadorId, onS
       Celular: worker?.Celular ?? "",
       DIRECCION_ANTIGUA: worker?.DIRECCION_ANTIGUA ?? "",
       Ciudad: worker?.Ciudad ?? "",
-      Nombres: worker?.Nombres ?? "",
-      Apellidos: worker?.Apellidos ?? "",
     };
   }, [worker]);
 
@@ -45,7 +44,7 @@ export function WorkerEditDialog({ open, onOpenChange, worker, trabajadorId, onS
     setForm((prev) => ({ ...prev, [k]: v }));
 
   const handleSave = async () => {
-    const id = trabajadorId || String(worker?.Id ?? worker?.ID ?? worker?.id ?? "");
+    const id = trabajadorId || String(worker?.id ?? "");
     if (!id) {
       toast.error("No pude detectar el ID del trabajador.");
       return;
@@ -54,27 +53,29 @@ export function WorkerEditDialog({ open, onOpenChange, worker, trabajadorId, onS
     try {
       setSaving(true);
 
-      const payload = {
-        // solo campos editables
+      // Payload para SharePoint fields (NO envuelvas en {fields:...}, tu cliente ya apunta a /fields)
+      const payload: Record<string, any> = {
+        Nombres: String(form.Nombres ?? "").trim(),
+        Apellidos: String(form.Apellidos ?? "").trim(),
         N_documento: String(form.N_documento ?? "").trim(),
         Email_Empresa: String(form.Email_Empresa ?? "").trim(),
         Email_PERSONAL: String(form.Email_PERSONAL ?? "").trim(),
         Estado: String(form.Estado ?? "").trim(),
-        NACIMIENTO: form.NACIMIENTO ? `${form.NACIMIENTO}T00:00:00Z` : null, // ajuste típico SharePoint/Graph
         Celular: String(form.Celular ?? "").trim(),
         DIRECCION_ANTIGUA: String(form.DIRECCION_ANTIGUA ?? "").trim(),
         Ciudad: String(form.Ciudad ?? "").trim(),
-        Nombres: String(form.Nombres ?? "").trim(),
-        Apellidos: String(form.Apellidos ?? "").trim(),
       };
 
-      // ✅ Aquí falta conectar el update real
-      // await updateTrabajador(id, payload);
+      // Fecha: si está vacía, no la tocamos (evita borrar datos por accidente)
+      if (form.NACIMIENTO?.trim()) {
+        // En listas SharePoint, date field suele aceptar ISO.
+        // Tu UI usa YYYY-MM-DD, lo convertimos a ISO Z.
+        payload.NACIMIENTO = `${form.NACIMIENTO}T00:00:00Z`;
+      }
 
-      // TEMP: para probar UI sin backend
-      await new Promise((r) => setTimeout(r, 300));
+      await updateTrabajador(id, payload);
 
-      toast.success("Cambios guardados (pendiente conectar update real)");
+      toast.success("Trabajador actualizado");
       onOpenChange(false);
       await onSaved();
     } catch (e: any) {
@@ -140,7 +141,11 @@ export function WorkerEditDialog({ open, onOpenChange, worker, trabajadorId, onS
 
           <div>
             <label className="text-sm">Nacimiento (YYYY-MM-DD)</label>
-            <Input value={form.NACIMIENTO} onChange={(e) => setField("NACIMIENTO", e.target.value)} placeholder="1990-12-31" />
+            <Input
+              value={form.NACIMIENTO}
+              onChange={(e) => setField("NACIMIENTO", e.target.value)}
+              placeholder="1990-12-31"
+            />
           </div>
         </div>
 
