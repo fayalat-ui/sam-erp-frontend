@@ -1,11 +1,13 @@
 import { Client } from "@microsoft/microsoft-graph-client";
 import type { AuthenticationProvider } from "@microsoft/microsoft-graph-client";
 
-// ✅ IMPORTA LA INSTANCIA ÚNICA (NO CREAR OTRO PublicClientApplication AQUÍ)
-import { msalInstance } from "../auth/msalInstance"; // <-- AJUSTA ESTA RUTA SI ES NECESARIO
+import { msalInstance } from "../auth/msalInstance";
 import { loginRequest } from "./msalConfig";
 
-// Helpers to read environment variables for SharePoint configuration.
+/* ===============================
+   Configuración básica
+================================ */
+
 const SP_SITE_ID = import.meta.env.VITE_SHAREPOINT_SITE_ID as string | undefined;
 const SP_HOSTNAME =
   (import.meta.env.VITE_SHAREPOINT_HOSTNAME as string | undefined) ||
@@ -13,204 +15,154 @@ const SP_HOSTNAME =
 const SP_SITE_PATH =
   (import.meta.env.VITE_SHAREPOINT_SITE_PATH as string | undefined) || "/";
 
-// Optional list IDs via environment variables (preferred in production)
 const ENV_LIST_IDS: Record<string, string | undefined> = {
-  TBL_TRABAJADORES: import.meta.env.VITE_SP_LIST_TRABAJADORES_ID as
-    | string
-    | undefined,
-  TBL_CLIENTES: import.meta.env.VITE_SP_LIST_CLIENTES_ID as string | undefined,
-  TBL_SERVICIOS: import.meta.env.VITE_SP_LIST_SERVICIOS_ID as string | undefined,
-  MANDANTES: import.meta.env.VITE_SP_LIST_MANDANTES_ID as string | undefined,
-  VACACIONES: import.meta.env.VITE_SP_LIST_VACACIONES_ID as string | undefined,
-  DIRECTIVAS: import.meta.env.VITE_SP_LIST_DIRECTIVAS_ID as string | undefined,
-
-  // ✅ NUEVA LISTA: permisos por usuario
-  TBL_USUARIOS_PERMISOS: import.meta.env.VITE_SP_LIST_USUARIOS_PERMISOS_ID as
-    | string
-    | undefined,
-
-  // (Opcional) si tienes estas env en Netlify, puedes agregarlas:
-  SOLICITUD_CONTRATOS: import.meta.env.VITE_SP_LIST_CONTRATOS_ID as
-    | string
-    | undefined,
-  TBL_REGISTRO_CURSO_OS10: import.meta.env.VITE_SP_LIST_CURSOS_ID as
-    | string
-    | undefined,
+  TBL_TRABAJADORES: import.meta.env.VITE_SP_LIST_TRABAJADORES_ID,
+  TBL_SERVICIOS: import.meta.env.VITE_SP_LIST_SERVICIOS_ID,
+  TBL_MANDANTES: import.meta.env.VITE_SP_LIST_MANDANTES_ID,
+  TBL_VACACIONES: import.meta.env.VITE_SP_LIST_VACACIONES_ID,
+  TBL_DIRECTIVAS: import.meta.env.VITE_SP_LIST_DIRECTIVAS_ID,
+  SOLICITUD_CONTRATOS: import.meta.env.VITE_SP_LIST_CONTRATOS_ID,
+  TBL_REGISTRO_CURSO_OS10: import.meta.env.VITE_SP_LIST_CURSOS_ID,
+  TBL_USUARIOS_PERMISOS: import.meta.env.VITE_SP_LIST_USUARIOS_PERMISOS_ID,
 };
 
-// ✅ Custom authentication provider for Microsoft Graph (usando msalInstance único)
+/* ===============================
+   Auth Provider
+================================ */
+
 class MsalAuthProvider implements AuthenticationProvider {
-  private initializedPromise: Promise<void> | null = null;
-
-  private async ensureInitialized(): Promise<void> {
-    if (!this.initializedPromise) {
-      this.initializedPromise = msalInstance.initialize();
-    }
-    await this.initializedPromise;
-
-    // Procesa redirect result si venías volviendo del loginRedirect
-    const result = await msalInstance.handleRedirectPromise();
-    if (result?.account) {
-      msalInstance.setActiveAccount(result.account);
-    }
-
-    // Fallback: fija activeAccount si hay cuentas guardadas
-    const active = msalInstance.getActiveAccount();
-    if (!active) {
-      const accounts = msalInstance.getAllAccounts();
-      if (accounts.length > 0) {
-        msalInstance.setActiveAccount(accounts[0]);
-      }
-    }
-  }
-
-  public async getAccessToken(): Promise<string> {
-    await this.ensureInitialized();
-
+  async getAccessToken(): Promise<string> {
     const account =
       msalInstance.getActiveAccount() ?? msalInstance.getAllAccounts()[0];
 
-    // En vez de lanzar "No authenticated user found", forzamos login
     if (!account) {
       await msalInstance.loginRedirect(loginRequest);
-      throw new Error("Redirecting to login...");
+      throw new Error("Redirecting to login");
     }
 
-    try {
-      const response = await msalInstance.acquireTokenSilent({
-        ...loginRequest,
-        account,
-      });
-      return response.accessToken;
-    } catch (error) {
-      console.error("Silent token acquisition failed. Redirecting:", error);
+    const result = await msalInstance.acquireTokenSilent({
+      ...loginRequest,
+      account,
+    });
 
-      await msalInstance.acquireTokenRedirect({
-        ...loginRequest,
-        account,
-      });
-
-      throw new Error("Redirecting to acquire token...");
-    }
+    return result.accessToken;
   }
 }
 
+/* ===============================
+   Cliente SharePoint
+================================ */
+
 class SharePointClient {
-  private graphClient: Client;
-  private siteId = "";
-  private authProvider: MsalAuthProvider;
-  private listIdCache = new Map<string, string>();
+  private client: Client;
+  private siteId: string | null = null;
+  private listCache = new Map<string, string>();
 
   constructor() {
-    this.authProvider = new MsalAuthProvider();
-    this.graphClient = Client.initWithMiddleware({
-      authProvider: this.authProvider,
+    this.client = Client.initWithMiddleware({
+      authProvider: new MsalAuthProvider(),
     });
   }
 
-  private isGuid(id: string) {
-    return /^[0-9a-fA-F-]{36}$/.test(id);
+  private isGuid(v: string) {
+    return /^[0-9a-fA-F-]{36}$/.test(v);
   }
 
-  async initializeSite() {
-    try {
-      if (this.siteId) return { id: this.siteId };
+  private async ensureSite() {
+    if (this.siteId) return;
 
-      if (SP_SITE_ID) {
-        const site = await this.graphClient.api(`/sites/${SP_SITE_ID}`).get();
-        this.siteId = site.id;
-        console.log(
-          "SharePoint site initialized by ID:",
-          site.displayName || site.id
-        );
-        return site;
-      }
-
-      const site = await this.graphClient
-        .api(`/sites/${SP_HOSTNAME}:${SP_SITE_PATH}`)
-        .get();
+    if (SP_SITE_ID) {
+      const site = await this.client.api(`/sites/${SP_SITE_ID}`).get();
       this.siteId = site.id;
-      console.log("SharePoint site initialized by host/path:", site.displayName);
-      return site;
-    } catch (error) {
-      console.error("Error initializing SharePoint site:", error);
-      throw error;
-    }
-  }
-
-  private async resolveListId(nameOrId: string): Promise<string> {
-    if (!nameOrId) throw new Error("List identifier is required");
-
-    if (this.isGuid(nameOrId)) return nameOrId;
-
-    const envId = ENV_LIST_IDS[nameOrId];
-    if (envId && this.isGuid(envId)) return envId;
-
-    const cached = this.listIdCache.get(nameOrId);
-    if (cached) return cached;
-
-    if (!this.siteId) {
-      await this.initializeSite();
+      return;
     }
 
-    const res = await this.graphClient
-      .api(`/sites/${this.siteId}/lists`)
-      .filter(`displayName eq '${nameOrId}'`)
+    const site = await this.client
+      .api(`/sites/${SP_HOSTNAME}:${SP_SITE_PATH}`)
       .get();
 
-    const list = Array.isArray(res?.value) ? res.value[0] : null;
-    if (!list?.id) {
-      throw new Error(`List not found by displayName: ${nameOrId}`);
-    }
+    this.siteId = site.id;
+  }
 
-    this.listIdCache.set(nameOrId, list.id);
+  private async resolveListId(name: string): Promise<string> {
+    if (this.isGuid(name)) return name;
+
+    const env = ENV_LIST_IDS[name];
+    if (env && this.isGuid(env)) return env;
+
+    const cached = this.listCache.get(name);
+    if (cached) return cached;
+
+    await this.ensureSite();
+
+    const res = await this.client
+      .api(`/sites/${this.siteId}/lists`)
+      .filter(`displayName eq '${name}'`)
+      .get();
+
+    const list = res?.value?.[0];
+    if (!list?.id) throw new Error(`Lista no encontrada: ${name}`);
+
+    this.listCache.set(name, list.id);
     return list.id;
   }
 
-  async getListItems(listNameOrId: string): Promise<SharePointListItem[]> {
-    try {
-      if (!this.siteId) {
-        await this.initializeSite();
-      }
+  async getListItems(listName: string): Promise<any[]> {
+    await this.ensureSite();
+    const listId = await this.resolveListId(listName);
 
-      const listId = await this.resolveListId(listNameOrId);
+    const res = await this.client
+      .api(`/sites/${this.siteId}/lists/${listId}/items`)
+      .expand("fields")
+      .top(5000)
+      .get();
 
-      const response = await this.graphClient
-        .api(`/sites/${this.siteId}/lists/${listId}/items`)
-        .expand("fields")
-        .top(5000)
-        .get();
-
-      return (response.value as SharePointListItem[]) || [];
-    } catch (error) {
-      console.error(`Error getting list items from ${listNameOrId}:`, error);
-      throw error;
-    }
+    return res?.value ?? [];
   }
 
-  async createListItem(
-    listNameOrId: string,
-    fields: Record<string, unknown>
-  ): Promise<SharePointListItem> {
-    try {
-      if (!this.siteId) {
-        await this.initializeSite();
-      }
+  async createListItem(listName: string, fields: Record<string, any>) {
+    await this.ensureSite();
+    const listId = await this.resolveListId(listName);
 
-      const listId = await this.resolveListId(listNameOrId);
-
-      const response = await this.graphClient
-        .api(`/sites/${this.siteId}/lists/${listId}/items`)
-        .post({ fields });
-
-      return response as SharePointListItem;
-    } catch (error) {
-      console.error(`Error creating item in ${listNameOrId}:`, error);
-      throw error;
-    }
+    return this.client
+      .api(`/sites/${this.siteId}/lists/${listId}/items`)
+      .post({ fields });
   }
 
   async updateListItem(
-    listNameOrId: string,
+    listName: string,
     itemId: string,
-    fields: Record<string, unknow
+    fields: Record<string, any>
+  ) {
+    await this.ensureSite();
+    const listId = await this.resolveListId(listName);
+
+    return this.client
+      .api(`/sites/${this.siteId}/lists/${listId}/items/${itemId}/fields`)
+      .patch(fields);
+  }
+
+  async deleteListItem(listName: string, itemId: string) {
+    await this.ensureSite();
+    const listId = await this.resolveListId(listName);
+
+    await this.client
+      .api(`/sites/${this.siteId}/lists/${listId}/items/${itemId}`)
+      .delete();
+  }
+}
+
+/* ===============================
+   Export
+================================ */
+
+export const sharePointClient = new SharePointClient();
+
+export async function checkSharePointConnection() {
+  try {
+    await sharePointClient.getListItems("TBL_TRABAJADORES");
+    return { success: true, message: "Conexión exitosa con SharePoint" };
+  } catch (e: any) {
+    return { success: false, message: e?.message ?? "Error de conexión" };
+  }
+}
