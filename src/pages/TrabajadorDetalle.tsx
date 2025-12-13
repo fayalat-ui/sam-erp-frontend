@@ -16,6 +16,7 @@ import {
   Edit3,
   Save,
   XCircle,
+  Trash2,
 } from "lucide-react";
 
 import { useSharePointAuth } from "@/contexts/SharePointAuthContext";
@@ -71,7 +72,6 @@ function formatFecha(fecha?: string) {
 
 function toIsoDateInput(value?: string) {
   if (!value) return "";
-  // si viene ISO completo, dejamos YYYY-MM-DD
   return value.slice(0, 10);
 }
 
@@ -79,8 +79,9 @@ export default function TrabajadorDetalle() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { canWrite } = useSharePointAuth();
+  const { canWrite, canAdmin } = useSharePointAuth();
   const canEdit = canWrite("rrhh");
+  const canDelete = canAdmin("rrhh");
 
   const [data, setData] = useState<TrabajadorDetalleData | null>(null);
   const [form, setForm] = useState<TrabajadorDetalleData | null>(null);
@@ -89,10 +90,15 @@ export default function TrabajadorDetalle() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const spCanUpdate = useMemo(() => {
     return typeof (sharePointClient as any)?.updateListItem === "function";
+  }, []);
+
+  const spCanDelete = useMemo(() => {
+    return typeof (sharePointClient as any)?.deleteListItem === "function";
   }, []);
 
   const loadData = async () => {
@@ -153,7 +159,7 @@ export default function TrabajadorDetalle() {
 
     if (!spCanUpdate) {
       alert(
-        "No se encontró updateListItem en sharePointClient. La ficha se puede ver, pero falta habilitar actualización en el cliente."
+        "No se encontró updateListItem en sharePointClient. La ficha se puede ver, pero falta habilitar actualización."
       );
       return;
     }
@@ -162,8 +168,6 @@ export default function TrabajadorDetalle() {
     setError(null);
 
     try {
-      // Construimos un PATCH seguro: solo campos que usamos / editamos
-      // (y respetando nombres de SharePoint)
       const payload: Record<string, any> = {
         Nombres: form.Nombres ?? "",
         Apellidos: form.Apellidos ?? "",
@@ -185,7 +189,6 @@ export default function TrabajadorDetalle() {
         Notas: form.Notas ?? "",
       };
 
-      // Fecha NACIMIENTO: enviar en formato YYYY-MM-DD si existe
       if (form.NACIMIENTO) payload.NACIMIENTO = form.NACIMIENTO;
 
       await (sharePointClient as any).updateListItem(
@@ -194,7 +197,6 @@ export default function TrabajadorDetalle() {
         payload
       );
 
-      // Recargar desde SP para quedar 100% sincronizados
       await loadData();
       setIsEditing(false);
     } catch (err: unknown) {
@@ -205,6 +207,42 @@ export default function TrabajadorDetalle() {
       alert("No se pudo guardar: " + msg);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!canDelete) return;
+    if (!data) return;
+
+    if (!spCanDelete) {
+      alert(
+        "No se encontró deleteListItem en sharePointClient. Falta habilitar eliminación en el cliente."
+      );
+      return;
+    }
+
+    const ok = confirm(
+      `ELIMINAR TRABAJADOR\n\n${data.NOMNRE_COMPLETO || ""}\nID: ${data.id}\n\nEsta acción NO se puede deshacer. ¿Confirmas?`
+    );
+    if (!ok) return;
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      await (sharePointClient as any).deleteListItem(
+        "TBL_TRABAJADORES",
+        String(data.id)
+      );
+      navigate("/trabajadores");
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Error desconocido al eliminar";
+      console.error("Error eliminando trabajador:", err);
+      setError(msg);
+      alert("No se pudo eliminar: " + msg);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -237,8 +275,8 @@ export default function TrabajadorDetalle() {
 
   return (
     <div className="space-y-6">
-      {/* Volver */}
-      <div className="flex items-center justify-between">
+      {/* Volver + acciones */}
+      <div className="flex items-center justify-between gap-3">
         <Button variant="outline" onClick={() => navigate("/trabajadores")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Volver a Trabajadores
@@ -257,7 +295,7 @@ export default function TrabajadorDetalle() {
               <Button
                 variant="outline"
                 onClick={cancelEdit}
-                disabled={saving}
+                disabled={saving || deleting}
                 className="flex items-center gap-2"
               >
                 <XCircle className="h-4 w-4" />
@@ -265,13 +303,25 @@ export default function TrabajadorDetalle() {
               </Button>
               <Button
                 onClick={save}
-                disabled={saving}
+                disabled={saving || deleting}
                 className="flex items-center gap-2"
               >
                 <Save className="h-4 w-4" />
                 {saving ? "Guardando..." : "Guardar"}
               </Button>
             </>
+          )}
+
+          {canDelete && !isEditing && (
+            <Button
+              variant="outline"
+              onClick={remove}
+              disabled={deleting}
+              className="flex items-center gap-2 text-red-600 hover:text-red-700"
+            >
+              <Trash2 className="h-4 w-4" />
+              {deleting ? "Eliminando..." : "Eliminar"}
+            </Button>
           )}
         </div>
       </div>
@@ -293,6 +343,12 @@ export default function TrabajadorDetalle() {
           <p className="mt-2 text-sm text-amber-700">
             Nota: falta implementar <b>updateListItem</b> en sharePointClient para
             guardar cambios.
+          </p>
+        )}
+        {!spCanDelete && canDelete && (
+          <p className="mt-2 text-sm text-amber-700">
+            Nota: falta implementar <b>deleteListItem</b> en sharePointClient para
+            eliminar.
           </p>
         )}
       </div>
