@@ -1,28 +1,14 @@
 import { sharePointClient } from "@/lib/sharepoint";
 
-/**
- * Servicio central de SharePoint
- * RRHH – Trabajadores
- */
-
-// ===============================
-// TIPOS
-// ===============================
 export interface SharePointItem {
   id: string;
   fields: Record<string, any>;
 }
 
-// ===============================
-// CONSTANTES
-// ===============================
 const LIST_TRABAJADORES = "TBL_TRABAJADORES";
 
-// ===============================
-// OBTENER TODOS
-// ===============================
 export async function getTrabajadores(): Promise<SharePointItem[]> {
-  return await sharePointClient.getListItems(
+  return sharePointClient.getListItems(
     LIST_TRABAJADORES,
     "*",
     undefined,
@@ -30,9 +16,6 @@ export async function getTrabajadores(): Promise<SharePointItem[]> {
   );
 }
 
-// ===============================
-// OBTENER POR ID
-// ===============================
 export async function getTrabajadorById(
   id: string | number
 ): Promise<SharePointItem> {
@@ -51,21 +34,15 @@ export async function getTrabajadorById(
   return items[0];
 }
 
-// ===============================
-// CREAR
-// ===============================
 export async function createTrabajador(
   fields: Record<string, any>
 ): Promise<SharePointItem> {
-  return await sharePointClient.createListItem(
+  return sharePointClient.createListItem(
     LIST_TRABAJADORES,
     fields
   );
 }
 
-// ===============================
-// ACTUALIZAR
-// ===============================
 export async function updateTrabajador(
   id: string,
   fields: Record<string, any>
@@ -77,9 +54,6 @@ export async function updateTrabajador(
   );
 }
 
-// ===============================
-// ELIMINAR
-// ===============================
 export async function deleteTrabajador(id: string): Promise<void> {
   await sharePointClient.deleteListItem(
     LIST_TRABAJADORES,
