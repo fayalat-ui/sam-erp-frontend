@@ -13,7 +13,7 @@ import { useSharePointAuth } from "@/contexts/SharePointAuthContext";
 import {
   getDashboardCounts,
   type DashboardCounts,
-} from "@/lib/sharepoint-services";
+} from "@/services/sharepointService";
 
 export default function Dashboard() {
   const { user, canRead } = useSharePointAuth();
