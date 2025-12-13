@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Users, Search, RefreshCw, AlertTriangle } from "lucide-react";
 
 import { getTrabajadores } from "@/services/sharepointService";
+
+// ✅ IMPORTA TU DETALLE (ajusta ruta si corresponde)
+import TrabajadorDetalle from "./TrabajadorDetalle";
 
 /**
  * Modelo mínimo para la LISTA
@@ -47,11 +50,14 @@ function formatDateISO(dateStr?: string) {
   if (!dateStr) return "-";
   const d = new Date(dateStr);
   if (Number.isNaN(d.getTime())) return "-";
-  // Formato simple y consistente (YYYY-MM-DD)
   return d.toISOString().slice(0, 10);
 }
 
-export default function Trabajadores() {
+/**
+ * ✅ Componente interno: Lista
+ * (lo dejamos dentro del mismo archivo para NO crear más archivos)
+ */
+function TrabajadoresLista() {
   const navigate = useNavigate();
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -67,10 +73,6 @@ export default function Trabajadores() {
     setError(null);
 
     try {
-      /**
-       * getTrabajadores() devuelve:
-       * [{ id, fields: { ...columnas SharePoint... } }]
-       */
       const items = await getTrabajadores();
 
       const mapped: Trabajador[] = items.map((item: any) => {
@@ -149,7 +151,9 @@ export default function Trabajadores() {
             disabled={refreshing}
             className="gap-2"
           >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+            />
             {refreshing ? "Actualizando…" : "Actualizar"}
           </Button>
         </div>
@@ -202,7 +206,8 @@ export default function Trabajadores() {
           </div>
 
           <p className="text-sm text-gray-500">
-            Tip: haz clic en una fila para ver el detalle y editar (si tienes permiso).
+            Tip: haz clic en una fila para ver el detalle y editar (si tienes
+            permiso).
           </p>
         </CardHeader>
 
@@ -211,10 +216,14 @@ export default function Trabajadores() {
             <div className="text-center py-10">
               <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-600 font-medium">
-                {searchTerm ? "No se encontraron resultados" : "No hay trabajadores registrados"}
+                {searchTerm
+                  ? "No se encontraron resultados"
+                  : "No hay trabajadores registrados"}
               </p>
               <p className="text-gray-500 text-sm mt-1">
-                {searchTerm ? "Prueba con otro nombre, RUT o email." : "Cuando existan registros, aparecerán aquí."}
+                {searchTerm
+                  ? "Prueba con otro nombre, RUT o email."
+                  : "Cuando existan registros, aparecerán aquí."}
               </p>
             </div>
           ) : (
@@ -222,11 +231,15 @@ export default function Trabajadores() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50 border-b text-sm">
-                    <th className="text-left py-3 px-4 font-medium">Nombre completo</th>
+                    <th className="text-left py-3 px-4 font-medium">
+                      Nombre completo
+                    </th>
                     <th className="text-left py-3 px-4 font-medium">RUT</th>
                     <th className="text-left py-3 px-4 font-medium">Email</th>
                     <th className="text-left py-3 px-4 font-medium">Estado</th>
-                    <th className="text-left py-3 px-4 font-medium">Nacimiento</th>
+                    <th className="text-left py-3 px-4 font-medium">
+                      Nacimiento
+                    </th>
                     <th className="text-left py-3 px-4 font-medium">Edad</th>
                   </tr>
                 </thead>
@@ -247,7 +260,9 @@ export default function Trabajadores() {
                           </div>
                         </td>
 
-                        <td className="py-3 px-4 font-mono text-sm">{t.rut || "-"}</td>
+                        <td className="py-3 px-4 font-mono text-sm">
+                          {t.rut || "-"}
+                        </td>
 
                         <td className="py-3 px-4 text-sm">{t.email || "-"}</td>
 
@@ -259,7 +274,9 @@ export default function Trabajadores() {
                           )}
                         </td>
 
-                        <td className="py-3 px-4 text-sm">{formatDateISO(t.nacimiento)}</td>
+                        <td className="py-3 px-4 text-sm">
+                          {formatDateISO(t.nacimiento)}
+                        </td>
 
                         <td className="py-3 px-4 text-sm">{edad ?? "—"}</td>
                       </tr>
@@ -272,5 +289,23 @@ export default function Trabajadores() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * ✅ Export principal: Router interno del módulo /trabajadores/*
+ */
+export default function Trabajadores() {
+  return (
+    <Routes>
+      {/* /trabajadores  */}
+      <Route index element={<TrabajadoresLista />} />
+
+      {/* /trabajadores/:id */}
+      <Route path=":id" element={<TrabajadorDetalle />} />
+
+      {/* fallback */}
+      <Route path="*" element={<Navigate to="/trabajadores" replace />} />
+    </Routes>
   );
 }
