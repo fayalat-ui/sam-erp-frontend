@@ -2,7 +2,7 @@ import { sharePointClient } from "../lib/sharepoint";
 
 /**
  * Servicio de alto nivel para consumir listas de SharePoint.
- * Incluye lecturas y CRUD de trabajadores.
+ * Mantiene compatibilidad con todas las páginas existentes.
  * Incluye conteos para Dashboard (Trabajadores + Servicios).
  */
 
@@ -25,7 +25,7 @@ export type DashboardCounts = {
 type SpItem = { id: string; fields: Record<string, any> };
 
 /** =========================
- *  HELPERS (robustos SharePoint)
+ *  HELPERS
  *  ========================= */
 
 function normalizeChoice(v: unknown): string {
@@ -52,7 +52,7 @@ function pickField(item: any, candidates: string[]) {
     if (k) return fields[k];
   }
 
-  // 3) Parcial (por si SharePoint renombra internamente)
+  // 3) Parcial (SharePoint renombra internamente)
   for (const name of candidates) {
     const k = keys.find((x) => x.toLowerCase().includes(name.toLowerCase()));
     if (k) return fields[k];
@@ -116,9 +116,13 @@ export async function deleteTrabajador(id: string | number) {
  *  OTRAS LISTAS (LECTURA)
  *  ========================= */
 
+export async function getClientes() {
+  return sharePointClient.getListItems("TBL_CLIENTES");
+}
+
 export async function getMandantes() {
-  // Nota: algunos proyectos usan "TBL_MANDANTES"; otros "MANDANTES".
-  // Si tu lista se llama "TBL_MANDANTES", cámbialo aquí.
+  // Si tu lista se llama distinto, cámbialo aquí.
+  // He visto "TBL_MANDANTES" y también "MANDANTES".
   return sharePointClient.getListItems("TBL_MANDANTES");
 }
 
@@ -152,7 +156,7 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
     sharePointClient.getListItems("TBL_SERVICIOS"),
   ]);
 
-  // ---- TRABAJADORES (Estado = ACTIVO/DESVINCULADO/LISTA NEGRA)
+  // ---- TRABAJADORES
   let tActivos = 0;
   let tDesvinculados = 0;
   let tListaNegra = 0;
@@ -166,7 +170,7 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
     else if (estado === "LISTA NEGRA") tListaNegra++;
   });
 
-  // ---- SERVICIOS (ESTADO = ACTIVO/TERMINADO)
+  // ---- SERVICIOS
   let sActivos = 0;
   let sTerminados = 0;
 
