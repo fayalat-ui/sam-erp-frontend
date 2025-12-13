@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import { useSharePointAuth } from "@/contexts/SharePointAuthContext";
-import { getTrabajadores, createTrabajador } from "@/services/sharepointService";
+import { getTrabajadores, createTrabajador } from "@/services/trabajadoresService";
 
 // ✅ IMPORTA TU DETALLE (ajusta ruta si corresponde)
 import TrabajadorDetalle from "./TrabajadorDetalle";
