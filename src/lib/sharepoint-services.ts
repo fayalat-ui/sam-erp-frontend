@@ -1,5 +1,4 @@
-// ⚠️ ARCHIVO DE COMPATIBILIDAD
-// No usar lógica aquí.
-// Todo viene desde src/services/sharepointService.ts
+// Archivo de compatibilidad
+// NO debe contener lógica
 
 export * from "@/services/sharepointService";
