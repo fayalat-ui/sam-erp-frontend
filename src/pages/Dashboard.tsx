@@ -2,18 +2,11 @@ import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Users,
-  Briefcase,
-  ArrowRight,
-  CheckCircle,
-} from "lucide-react";
+import { Users, Briefcase, ArrowRight, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useSharePointAuth } from "@/contexts/SharePointAuthContext";
-import {
-  getDashboardCounts,
-  type DashboardCounts,
-} from "@/services/sharepointService";
+
+import { getDashboardCounts, type DashboardCounts } from "@/services/dashboardAdapter";
 
 export default function Dashboard() {
   const { user, canRead } = useSharePointAuth();
@@ -33,10 +26,7 @@ export default function Dashboard() {
 
   // Trabajadores
   const t = counts?.trabajadores;
-  const tTotal =
-    (t?.activos ?? 0) +
-    (t?.desvinculados ?? 0) +
-    (t?.listaNegra ?? 0);
+  const tTotal = (t?.activos ?? 0) + (t?.desvinculados ?? 0) + (t?.listaNegra ?? 0);
 
   // Servicios
   const s = counts?.servicios;
@@ -59,9 +49,7 @@ export default function Dashboard() {
 
             <h1 className="text-3xl font-bold text-slate-900">
               Hola,{" "}
-              <span className="text-blue-700">
-                {user?.displayName || "Usuario"}
-              </span>
+              <span className="text-blue-700">{user?.displayName || "Usuario"}</span>
             </h1>
 
             <p className="text-slate-600 max-w-2xl">
@@ -87,11 +75,7 @@ export default function Dashboard() {
 
               {canRead("osp") && (
                 <Link to="/servicios">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex items-center gap-2"
-                  >
+                  <Button size="sm" variant="outline" className="flex items-center gap-2">
                     <Briefcase className="h-4 w-4" />
                     Ver servicios
                   </Button>
@@ -155,9 +139,7 @@ function Kpi({
       <CardContent className="p-4 space-y-1">
         <div className="flex items-center gap-2">
           <Icon className="h-4 w-4" />
-          <p className="text-xs font-semibold uppercase tracking-wide">
-            {titulo}
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide">{titulo}</p>
         </div>
 
         {loading ? (
@@ -165,9 +147,7 @@ function Kpi({
         ) : (
           <p className="text-2xl font-bold">
             {valor}{" "}
-            <span className="text-sm font-normal text-slate-500">
-              / {total}
-            </span>
+            <span className="text-sm font-normal text-slate-500">/ {total}</span>
           </p>
         )}
       </CardContent>
