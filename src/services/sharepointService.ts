@@ -2,7 +2,7 @@ import { sharePointClient } from "../lib/sharepoint";
 
 /**
  * Servicio central SharePoint
- * Fuente única de datos
+ * Fuente única de datos del ERP
  */
 
 /** =========================
@@ -23,6 +23,11 @@ export type DashboardCounts = {
     solicitados: number;
     enviadosARevisar: number;
     rechazados: number;
+  };
+  directivas: {
+    vencidas: number;
+    porVencer: number;
+    vigentes: number;
   };
 };
 
@@ -66,89 +71,46 @@ function pickField(item: any, candidates: string[]) {
   return undefined;
 }
 
+function parseDate(value: any): Date | null {
+  if (!value) return null;
+
+  // SharePoint suele mandar ISO
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+
+  return d;
+}
+
 /** =========================
- *  TRABAJADORES
+ *  LISTAS
  *  ========================= */
 
 export async function getTrabajadores() {
   return sharePointClient.getListItems("TBL_TRABAJADORES");
 }
 
-export async function getTrabajadorById(id: string | number) {
-  const items = (await getTrabajadores()) as SpItem[];
-  const found = items.find((it) => String(it.id) === String(id));
-  if (!found) throw new Error("Trabajador no encontrado");
-  return found;
-}
-
-export async function createTrabajador(fields: Record<string, any>) {
-  const title =
-    `${fields.Nombres ?? ""} ${fields.Apellidos ?? ""}`.trim() ||
-    fields.N_documento ||
-    "Trabajador";
-
-  return sharePointClient.createListItem("TBL_TRABAJADORES", {
-    Title: title,
-    ...fields,
-  });
-}
-
-export async function updateTrabajador(
-  id: string | number,
-  fields: Record<string, unknown>
-) {
-  return sharePointClient.updateListItem("TBL_TRABAJADORES", String(id), fields);
-}
-
-export async function deleteTrabajador(id: string | number) {
-  return sharePointClient.deleteListItem("TBL_TRABAJADORES", String(id));
-}
-
-/** =========================
- *  SERVICIOS
- *  ========================= */
-
 export async function getServicios() {
   return sharePointClient.getListItems("TBL_SERVICIOS");
 }
 
-/** =========================
- *  SOLICITUDES DE CONTRATO
- *  ========================= */
-
 export async function getSolicitudesContrato() {
   return sharePointClient.getListItems("SOLICITUD_CONTRATOS");
-}
-
-/** =========================
- *  OTRAS LISTAS
- *  ========================= */
-
-export async function getMandantes() {
-  return sharePointClient.getListItems("TBL_MANDANTES");
-}
-
-export async function getVacaciones() {
-  return sharePointClient.getListItems("TBL_VACACIONES");
 }
 
 export async function getDirectivas() {
   return sharePointClient.getListItems("TBL_DIRECTIVAS");
 }
 
-export async function getCursosOS10() {
-  return sharePointClient.getListItems("TBL_REGISTRO_CURSO_OS10");
-}
-
 /** =========================
- *  DASHBOARD – PASO 3
+ *  DASHBOARD – PASO 4
  *  ========================= */
 
 export async function getDashboardCounts(): Promise<DashboardCounts> {
-  const [trabajadores, servicios, contratos] = await Promise.all([
+  const [trabajadores, servicios, contratos, directivas] = await Promise.all([
     getTrabajadores(),
     getServicios(),
     getSolicitudesContrato(),
+    getDirectivas(),
   ]);
 
   // ---- TRABAJADORES
@@ -188,6 +150,28 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
     else if (estado === "RECHAZADO") cRechazados++;
   });
 
+  // ---- DIRECTIVAS (VIGENCIA)
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
+  const dosMeses = new Date(hoy);
+  dosMeses.setMonth(dosMeses.getMonth() + 2);
+
+  let dVencidas = 0;
+  let dPorVencer = 0;
+  let dVigentes = 0;
+
+  (directivas as SpItem[]).forEach((item) => {
+    const rawFecha = pickField(item, ["VIGENCIA", "Vigencia"]);
+    const fecha = parseDate(rawFecha);
+
+    if (!fecha) return;
+
+    if (fecha < hoy) dVencidas++;
+    else if (fecha <= dosMeses) dPorVencer++;
+    else dVigentes++;
+  });
+
   return {
     trabajadores: {
       activos: tActivos,
@@ -202,6 +186,11 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
       solicitados: cSolicitados,
       enviadosARevisar: cRevisar,
       rechazados: cRechazados,
+    },
+    directivas: {
+      vencidas: dVencidas,
+      porVencer: dPorVencer,
+      vigentes: dVigentes,
     },
   };
 }
