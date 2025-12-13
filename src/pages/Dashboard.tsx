@@ -4,10 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSharePointAuth } from "@/contexts/SharePointAuthContext";
 import {
-  getTrabajadores,
   getMandantes,
-  getServicios,
   getVacaciones,
+  getDashboardCounts,
+  type DashboardCounts,
 } from "@/services/sharepointService";
 import {
   Users,
@@ -18,26 +18,21 @@ import {
   AlertTriangle,
   TrendingUp,
   ArrowRight,
+  FileText,
+  ShieldCheck,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-
-type SpItem = {
-  id: string;
-  fields: Record<string, any>;
-};
 
 export default function Dashboard() {
   const { user, canRead } = useSharePointAuth();
 
-  const [trabajadores, setTrabajadores] = useState<SpItem[] | null>(null);
-  const [mandantes, setMandantes] = useState<SpItem[] | null>(null);
-  const [servicios, setServicios] = useState<SpItem[] | null>(null);
-  const [vacaciones, setVacaciones] = useState<SpItem[] | null>(null);
+  const [counts, setCounts] = useState<DashboardCounts | null>(null);
+  const [mandantesTotal, setMandantesTotal] = useState<number>(0);
+  const [vacacionesTotal, setVacacionesTotal] = useState<number>(0);
 
   const [loading, setLoading] = useState({
-    trabajadores: false,
+    dashboard: false,
     mandantes: false,
-    servicios: false,
     vacaciones: false,
   });
 
@@ -46,44 +41,35 @@ export default function Dashboard() {
   useEffect(() => {
     const loadAll = async () => {
       try {
-        // Trabajadores
-        if (canRead("rrhh")) {
-          setLoading((p) => ({ ...p, trabajadores: true }));
-          const data = await getTrabajadores();
-          setTrabajadores(data);
-          setLoading((p) => ({ ...p, trabajadores: false }));
-        }
+        setError(null);
 
-        // Mandantes
+        // Dashboard counts (depende de varias listas)
+        setLoading((p) => ({ ...p, dashboard: true }));
+        const dash = await getDashboardCounts();
+        setCounts(dash);
+        setLoading((p) => ({ ...p, dashboard: false }));
+
+        // Mandantes (solo total)
         if (canRead("administradores")) {
           setLoading((p) => ({ ...p, mandantes: true }));
-          const data = await getMandantes();
-          setMandantes(data);
+          const m = await getMandantes();
+          setMandantesTotal((m as any[])?.length || 0);
           setLoading((p) => ({ ...p, mandantes: false }));
         }
 
-        // Servicios
-        if (canRead("osp")) {
-          setLoading((p) => ({ ...p, servicios: true }));
-          const data = await getServicios();
-          setServicios(data);
-          setLoading((p) => ({ ...p, servicios: false }));
-        }
-
-        // Vacaciones
+        // Vacaciones (solo total registros)
         if (canRead("rrhh")) {
           setLoading((p) => ({ ...p, vacaciones: true }));
-          const data = await getVacaciones();
-          setVacaciones(data);
+          const v = await getVacaciones();
+          setVacacionesTotal((v as any[])?.length || 0);
           setLoading((p) => ({ ...p, vacaciones: false }));
         }
       } catch (e: any) {
         console.error("Error cargando dashboard:", e);
         setError(e?.message || "Error al cargar datos del dashboard");
         setLoading({
-          trabajadores: false,
+          dashboard: false,
           mandantes: false,
-          servicios: false,
           vacaciones: false,
         });
       }
@@ -92,30 +78,36 @@ export default function Dashboard() {
     void loadAll();
   }, [canRead]);
 
-  const getEstadoCount = (items: SpItem[] | null, estado = "Activo") =>
-    items?.filter(
-      (i) =>
-        i?.fields?.ESTADO_ === estado ||
-        i?.fields?.Estado === estado ||
-        i?.fields?.estado === estado
-    ).length || 0;
+  const anyLoading = loading.dashboard || loading.mandantes || loading.vacaciones;
 
-  const getTotal = (items: SpItem[] | null) => items?.length || 0;
+  // Trabajadores
+  const tActivos = counts?.trabajadores.activos ?? 0;
+  const tDesv = counts?.trabajadores.desvinculados ?? 0;
+  const tNegra = counts?.trabajadores.listaNegra ?? 0;
+  const tTotal = tActivos + tDesv + tNegra;
 
-  const totalTrabajadores = getTotal(trabajadores);
-  const activosTrabajadores = getEstadoCount(trabajadores, "Activo");
+  // Servicios
+  const sActivos = counts?.servicios.activos ?? 0;
+  const sTerminados = counts?.servicios.terminados ?? 0;
+  const sTotal = sActivos + sTerminados;
 
-  const totalServicios = getTotal(servicios);
-  const activosServicios = getEstadoCount(servicios, "Activo");
+  // Solicitudes contratos
+  const scSolicitado = counts?.solicitudesContratos.contratoSolicitado ?? 0;
+  const scRevisar = counts?.solicitudesContratos.enviadoARevisar ?? 0;
+  const scRechazado = counts?.solicitudesContratos.rechazado ?? 0;
+  const scTotal = scSolicitado + scRevisar + scRechazado;
 
-  const totalMandantes = getTotal(mandantes);
-  const totalVacaciones = getTotal(vacaciones);
+  // Directivas
+  const dVencidas = counts?.directivas.vencidas ?? 0;
+  const dPorVencer = counts?.directivas.porVencer ?? 0;
+  const dVigentes = counts?.directivas.vigentes ?? 0;
+  const dTotal = dVencidas + dPorVencer + dVigentes;
 
-  const anyLoading =
-    loading.trabajadores ||
-    loading.mandantes ||
-    loading.servicios ||
-    loading.vacaciones;
+  // OS10
+  const oVencidas = counts?.os10.vencidas ?? 0;
+  const oPorVencer = counts?.os10.porVencer ?? 0;
+  const oVigentes = counts?.os10.vigentes ?? 0;
+  const oTotal = oVencidas + oPorVencer + oVigentes;
 
   const hoy = new Date().toLocaleDateString("es-CL", {
     weekday: "long",
@@ -185,7 +177,20 @@ export default function Dashboard() {
                       className="rounded-full border-slate-300"
                     >
                       <Briefcase className="h-4 w-4 mr-1" />
-                      Servicios activos
+                      Servicios
+                    </Button>
+                  </Link>
+                )}
+
+                {canRead("administradores") && (
+                  <Link to="/mandantes">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full border-slate-300"
+                    >
+                      <Building2 className="h-4 w-4 mr-1" />
+                      Mandantes
                     </Button>
                   </Link>
                 )}
@@ -206,34 +211,32 @@ export default function Dashboard() {
                   Trabajadores activos
                 </span>
                 <span className="text-lg font-semibold">
-                  {activosTrabajadores}/{totalTrabajadores || 0}
+                  {tActivos}/{tTotal}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-300">
-                  Servicios activos
-                </span>
+                <span className="text-sm text-slate-300">Servicios activos</span>
                 <span className="text-lg font-semibold">
-                  {activosServicios}/{totalServicios || 0}
+                  {sActivos}/{sTotal}
                 </span>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-300">Mandantes</span>
-                <span className="text-lg font-semibold">
-                  {totalMandantes || 0}
-                </span>
-              </div>
+              {canRead("administradores") && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-300">Mandantes</span>
+                  <span className="text-lg font-semibold">{mandantesTotal}</span>
+                </div>
+              )}
 
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-300">
-                  Registros de vacaciones
-                </span>
-                <span className="text-lg font-semibold">
-                  {totalVacaciones || 0}
-                </span>
-              </div>
+              {canRead("rrhh") && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-300">
+                    Registros de vacaciones
+                  </span>
+                  <span className="text-lg font-semibold">{vacacionesTotal}</span>
+                </div>
+              )}
 
               {error && (
                 <div className="mt-3 flex items-start gap-2 text-xs text-amber-200">
@@ -249,54 +252,54 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {canRead("rrhh") && (
             <KpiCard
-              titulo="Trabajadores activos"
-              total={totalTrabajadores}
-              valor={activosTrabajadores}
+              titulo="Trabajadores (Act/Desv/Negra)"
+              total={tTotal}
+              valor={tActivos}
               icon={Users}
               color="blue"
               href="/trabajadores"
-              loading={loading.trabajadores}
-            />
-          )}
-
-          {canRead("administradores") && (
-            <KpiCard
-              titulo="Mandantes"
-              total={totalMandantes}
-              valor={totalMandantes}
-              icon={Building2}
-              color="emerald"
-              href="/mandantes"
-              loading={loading.mandantes}
+              loading={loading.dashboard}
             />
           )}
 
           {canRead("osp") && (
             <KpiCard
-              titulo="Servicios activos"
-              total={totalServicios}
-              valor={activosServicios}
+              titulo="Servicios (Activos)"
+              total={sTotal}
+              valor={sActivos}
               icon={Briefcase}
               color="purple"
               href="/servicios"
-              loading={loading.servicios}
+              loading={loading.dashboard}
             />
           )}
 
           {canRead("rrhh") && (
             <KpiCard
-              titulo="Registros vacaciones"
-              total={totalVacaciones}
-              valor={totalVacaciones}
-              icon={Calendar}
+              titulo="Solicitudes contrato (Pendientes)"
+              total={scTotal}
+              valor={scSolicitado + scRevisar}
+              icon={FileText}
               color="orange"
-              href="/vacaciones"
-              loading={loading.vacaciones}
+              href="/contratos"
+              loading={loading.dashboard}
+            />
+          )}
+
+          {canRead("rrhh") && (
+            <KpiCard
+              titulo="OS10 (Por vencer)"
+              total={oTotal}
+              valor={oPorVencer}
+              icon={ShieldCheck}
+              color="emerald"
+              href="/cursos"
+              loading={loading.dashboard}
             />
           )}
         </div>
 
-        {/* DOS BLOQUES DE RESUMEN: RRHH / Operaciones */}
+        {/* BLOQUES DE RESUMEN */}
         <div className="grid gap-5 lg:grid-cols-2">
           {canRead("rrhh") && (
             <Card className="shadow-sm">
@@ -307,22 +310,22 @@ export default function Dashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-slate-700">
-                <ResumenLinea
-                  etiqueta="Total trabajadores"
-                  valor={totalTrabajadores}
-                />
-                <ResumenLinea
-                  etiqueta="Activos"
-                  valor={activosTrabajadores}
-                />
-                <ResumenLinea
-                  etiqueta="En vacaciones (registros)"
-                  valor={totalVacaciones}
-                />
-                <div className="mt-3">
+                <ResumenLinea etiqueta="Activos" valor={tActivos} />
+                <ResumenLinea etiqueta="Desvinculados" valor={tDesv} />
+                <ResumenLinea etiqueta="Lista negra" valor={tNegra} />
+                <ResumenLinea etiqueta="Solicitudes: contrato solicitado" valor={scSolicitado} />
+                <ResumenLinea etiqueta="Solicitudes: enviado a revisar" valor={scRevisar} />
+                <ResumenLinea etiqueta="Solicitudes: rechazado" valor={scRechazado} />
+                <ResumenLinea etiqueta="Vacaciones (registros)" valor={vacacionesTotal} />
+                <div className="mt-3 flex gap-2 flex-wrap">
                   <Link to="/trabajadores">
                     <Button variant="outline" size="sm" className="rounded-full">
-                      Ver módulo RRHH
+                      Ver trabajadores
+                    </Button>
+                  </Link>
+                  <Link to="/contratos">
+                    <Button variant="outline" size="sm" className="rounded-full">
+                      Ver contratos
                     </Button>
                   </Link>
                 </div>
@@ -335,45 +338,46 @@ export default function Dashboard() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-slate-800">
                   <Briefcase className="h-5 w-5 text-purple-600" />
-                  Resumen Operaciones
+                  Resumen Operaciones & Cumplimiento
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-slate-700">
-                <ResumenLinea
-                  etiqueta="Servicios totales"
-                  valor={totalServicios}
-                />
-                <ResumenLinea
-                  etiqueta="Servicios activos"
-                  valor={activosServicios}
-                />
-                <ResumenLinea
-                  etiqueta="Mandantes"
-                  valor={totalMandantes}
-                />
+                <ResumenLinea etiqueta="Servicios activos" valor={sActivos} />
+                <ResumenLinea etiqueta="Servicios terminados" valor={sTerminados} />
+                {canRead("administradores") && (
+                  <ResumenLinea etiqueta="Mandantes" valor={mandantesTotal} />
+                )}
+
+                <div className="mt-2 pt-2 border-t border-slate-200">
+                  <ResumenLinea etiqueta="Directivas vencidas" valor={dVencidas} />
+                  <ResumenLinea etiqueta="Directivas por vencer (2 meses)" valor={dPorVencer} />
+                  <ResumenLinea etiqueta="Directivas vigentes" valor={dVigentes} />
+                </div>
+
+                <div className="mt-2 pt-2 border-t border-slate-200">
+                  <ResumenLinea etiqueta="OS10 vencidos" valor={oVencidas} />
+                  <ResumenLinea etiqueta="OS10 por vencer (2 meses)" valor={oPorVencer} />
+                  <ResumenLinea etiqueta="OS10 vigentes" valor={oVigentes} />
+                </div>
+
                 <div className="mt-3 flex gap-2 flex-wrap">
                   {canRead("osp") && (
                     <Link to="/servicios">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-full"
-                      >
+                      <Button variant="outline" size="sm" className="rounded-full">
                         Ir a servicios
                       </Button>
                     </Link>
                   )}
-                  {canRead("administradores") && (
-                    <Link to="/mandantes">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-full"
-                      >
-                        Ir a mandantes
-                      </Button>
-                    </Link>
-                  )}
+                  <Link to="/directivas">
+                    <Button variant="outline" size="sm" className="rounded-full">
+                      Ver directivas
+                    </Button>
+                  </Link>
+                  <Link to="/cursos">
+                    <Button variant="outline" size="sm" className="rounded-full">
+                      Ver OS10
+                    </Button>
+                  </Link>
                 </div>
               </CardContent>
             </Card>
@@ -395,15 +399,7 @@ interface KpiProps {
   loading?: boolean;
 }
 
-function KpiCard({
-  titulo,
-  valor,
-  total,
-  icon: Icon,
-  color,
-  href,
-  loading,
-}: KpiProps) {
+function KpiCard({ titulo, valor, total, icon: Icon, color, href, loading }: KpiProps) {
   const palettes: Record<
     KpiProps["color"],
     { bg: string; text: string; border: string; pill: string }
@@ -435,23 +431,16 @@ function KpiCard({
   };
 
   const cfg = palettes[color];
-  const porcentaje =
-    total > 0 ? Math.round((valor / total) * 100) : valor > 0 ? 100 : 0;
+  const porcentaje = total > 0 ? Math.round((valor / total) * 100) : valor > 0 ? 100 : 0;
 
   return (
-    <Card
-      className={`shadow-sm border ${cfg.border} ${cfg.bg} hover:shadow-md transition-all duration-150`}
-    >
+    <Card className={`shadow-sm border ${cfg.border} ${cfg.bg} hover:shadow-md transition-all duration-150`}>
       <CardContent className="p-4 flex flex-col h-full">
         <div className="flex items-start justify-between mb-3">
-          <div
-            className={`p-2 rounded-xl border ${cfg.border} bg-white/60 shadow-xs`}
-          >
+          <div className={`p-2 rounded-xl border ${cfg.border} bg-white/60 shadow-xs`}>
             <Icon className={`h-5 w-5 ${cfg.text}`} />
           </div>
-          <span
-            className={`text-xs px-2 py-0.5 rounded-full ${cfg.pill} font-medium`}
-          >
+          <span className={`text-xs px-2 py-0.5 rounded-full ${cfg.pill} font-medium`}>
             {porcentaje}% del total
           </span>
         </div>
@@ -466,9 +455,7 @@ function KpiCard({
             </div>
           ) : (
             <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-2xl font-bold text-slate-900">
-                {valor}
-              </span>
+              <span className="text-2xl font-bold text-slate-900">{valor}</span>
               <span className="text-sm text-slate-500">/ {total}</span>
             </div>
           )}
