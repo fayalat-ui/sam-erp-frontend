@@ -1,5 +1,11 @@
 import { sharePointClient } from "../lib/sharepoint";
 
+/**
+ * Servicio de alto nivel para consumir listas de SharePoint.
+ * Incluye lecturas y CRUD de trabajadores.
+ * Incluye conteos para Dashboard (Trabajadores + Servicios).
+ */
+
 /** =========================
  *  TIPOS
  *  ========================= */
@@ -16,8 +22,10 @@ export type DashboardCounts = {
   };
 };
 
+type SpItem = { id: string; fields: Record<string, any> };
+
 /** =========================
- *  HELPERS
+ *  HELPERS (robustos SharePoint)
  *  ========================= */
 
 function normalizeChoice(v: unknown): string {
@@ -32,25 +40,21 @@ function pickField(item: any, candidates: string[]) {
   const fields = item?.fields;
   if (!fields) return undefined;
 
-  // Exacto
+  // 1) Exacto
   for (const name of candidates) {
     if (fields[name] !== undefined) return fields[name];
   }
 
-  // Case-insensitive
+  // 2) Case-insensitive
   const keys = Object.keys(fields);
   for (const name of candidates) {
-    const k = keys.find(
-      (x) => x.toLowerCase() === name.toLowerCase()
-    );
+    const k = keys.find((x) => x.toLowerCase() === name.toLowerCase());
     if (k) return fields[k];
   }
 
-  // Parcial (Estado_, ESTADO_x0020_)
+  // 3) Parcial (por si SharePoint renombra internamente)
   for (const name of candidates) {
-    const k = keys.find((x) =>
-      x.toLowerCase().includes(name.toLowerCase())
-    );
+    const k = keys.find((x) => x.toLowerCase().includes(name.toLowerCase()));
     if (k) return fields[k];
   }
 
@@ -58,7 +62,7 @@ function pickField(item: any, candidates: string[]) {
 }
 
 /** =========================
- *  TRABAJADORES
+ *  TRABAJADORES (CRUD)
  *  ========================= */
 
 export async function getTrabajadores() {
@@ -66,28 +70,80 @@ export async function getTrabajadores() {
 }
 
 export async function getTrabajadorById(id: string | number) {
-  const items = await sharePointClient.getListItems("TBL_TRABAJADORES");
-  const found = (items as any[]).find(
-    (it) => String(it.id) === String(id)
-  );
+  const items = (await sharePointClient.getListItems(
+    "TBL_TRABAJADORES"
+  )) as SpItem[];
 
-  if (!found) {
-    throw new Error("Trabajador no encontrado");
-  }
-
+  const found = items.find((it) => String(it.id) === String(id));
+  if (!found) throw new Error("Trabajador no encontrado");
   return found;
 }
 
+export async function createTrabajador(fields: {
+  Nombres?: string;
+  Apellidos?: string;
+  N_documento?: string;
+  Email_Empresa?: string;
+  Estado?: string;
+  NACIMIENTO?: string; // YYYY-MM-DD
+  [key: string]: any;
+}) {
+  const title =
+    `${fields.Nombres ?? ""} ${fields.Apellidos ?? ""}`.trim() ||
+    fields.N_documento ||
+    "Trabajador";
+
+  const payload: Record<string, unknown> = {
+    Title: title,
+    ...fields,
+  };
+
+  return sharePointClient.createListItem("TBL_TRABAJADORES", payload);
+}
+
+export async function updateTrabajador(
+  id: string | number,
+  fields: Record<string, unknown>
+) {
+  return sharePointClient.updateListItem("TBL_TRABAJADORES", String(id), fields);
+}
+
+export async function deleteTrabajador(id: string | number) {
+  return sharePointClient.deleteListItem("TBL_TRABAJADORES", String(id));
+}
+
 /** =========================
- *  SERVICIOS
+ *  OTRAS LISTAS (LECTURA)
  *  ========================= */
+
+export async function getMandantes() {
+  // Nota: algunos proyectos usan "TBL_MANDANTES"; otros "MANDANTES".
+  // Si tu lista se llama "TBL_MANDANTES", cámbialo aquí.
+  return sharePointClient.getListItems("TBL_MANDANTES");
+}
 
 export async function getServicios() {
   return sharePointClient.getListItems("TBL_SERVICIOS");
 }
 
+export async function getVacaciones() {
+  return sharePointClient.getListItems("TBL_VACACIONES");
+}
+
+export async function getDirectivas() {
+  return sharePointClient.getListItems("TBL_DIRECTIVAS");
+}
+
+export async function getSolicitudesContrato() {
+  return sharePointClient.getListItems("SOLICITUD_CONTRATOS");
+}
+
+export async function getCursosOS10() {
+  return sharePointClient.getListItems("TBL_REGISTRO_CURSO_OS10");
+}
+
 /** =========================
- *  DASHBOARD – TRABAJADORES + SERVICIOS
+ *  DASHBOARD – Trabajadores + Servicios
  *  ========================= */
 
 export async function getDashboardCounts(): Promise<DashboardCounts> {
@@ -96,27 +152,27 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
     sharePointClient.getListItems("TBL_SERVICIOS"),
   ]);
 
-  // ---- TRABAJADORES
+  // ---- TRABAJADORES (Estado = ACTIVO/DESVINCULADO/LISTA NEGRA)
   let tActivos = 0;
   let tDesvinculados = 0;
   let tListaNegra = 0;
 
   (trabajadores as any[]).forEach((item) => {
-    const rawEstado = pickField(item, ["Estado", "ESTADO"]);
-    const estado = normalizeChoice(rawEstado);
+    const raw = pickField(item, ["Estado", "ESTADO"]);
+    const estado = normalizeChoice(raw);
 
     if (estado === "ACTIVO") tActivos++;
     else if (estado === "DESVINCULADO") tDesvinculados++;
     else if (estado === "LISTA NEGRA") tListaNegra++;
   });
 
-  // ---- SERVICIOS
+  // ---- SERVICIOS (ESTADO = ACTIVO/TERMINADO)
   let sActivos = 0;
   let sTerminados = 0;
 
   (servicios as any[]).forEach((item) => {
-    const rawEstado = pickField(item, ["ESTADO", "Estado"]);
-    const estado = normalizeChoice(rawEstado);
+    const raw = pickField(item, ["ESTADO", "Estado"]);
+    const estado = normalizeChoice(raw);
 
     if (estado === "ACTIVO") sActivos++;
     else if (estado === "TERMINADO") sTerminados++;
