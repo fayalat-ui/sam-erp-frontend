@@ -46,25 +46,15 @@ export const clientesService = {
   },
 
   async create(fields: Record<string, any>): Promise<SharePointItem> {
-    return await sharePointClient.createListItem(
-      LIST_CLIENTES,
-      fields
-    );
+    return await sharePointClient.createListItem(LIST_CLIENTES, fields);
   },
 
   async update(id: string, fields: Record<string, any>): Promise<void> {
-    await sharePointClient.updateListItem(
-      LIST_CLIENTES,
-      id,
-      fields
-    );
+    await sharePointClient.updateListItem(LIST_CLIENTES, id, fields);
   },
 
   async remove(id: string): Promise<void> {
-    await sharePointClient.deleteListItem(
-      LIST_CLIENTES,
-      id
-    );
+    await sharePointClient.deleteListItem(LIST_CLIENTES, id);
   },
 };
 
@@ -100,24 +90,58 @@ export const mandantesService = {
   },
 
   async create(fields: Record<string, any>): Promise<SharePointItem> {
-    return await sharePointClient.createListItem(
-      LIST_MANDANTES,
-      fields
-    );
+    return await sharePointClient.createListItem(LIST_MANDANTES, fields);
   },
 
   async update(id: string, fields: Record<string, any>): Promise<void> {
-    await sharePointClient.updateListItem(
-      LIST_MANDANTES,
-      id,
-      fields
-    );
+    await sharePointClient.updateListItem(LIST_MANDANTES, id, fields);
   },
 
   async remove(id: string): Promise<void> {
-    await sharePointClient.deleteListItem(
-      LIST_MANDANTES,
-      id
+    await sharePointClient.deleteListItem(LIST_MANDANTES, id);
+  },
+};
+
+// ===============================
+// SERVICIOS  ✅ (NUEVO)
+// ===============================
+const LIST_SERVICIOS = "TBL_SERVICIOS";
+
+export const serviciosService = {
+  async getAll(): Promise<SharePointItem[]> {
+    return await sharePointClient.getListItems(
+      LIST_SERVICIOS,
+      "*",
+      undefined,
+      "Created desc"
     );
+  },
+
+  async getById(id: string | number): Promise<SharePointItem> {
+    const items = await sharePointClient.getListItems(
+      LIST_SERVICIOS,
+      "*",
+      `id eq ${id}`,
+      undefined,
+      1
+    );
+
+    if (!items || items.length === 0) {
+      throw new Error("Servicio no encontrado");
+    }
+
+    return items[0];
+  },
+
+  async create(fields: Record<string, any>): Promise<SharePointItem> {
+    return await sharePointClient.createListItem(LIST_SERVICIOS, fields);
+  },
+
+  async update(id: string, fields: Record<string, any>): Promise<void> {
+    await sharePointClient.updateListItem(LIST_SERVICIOS, id, fields);
+  },
+
+  async remove(id: string): Promise<void> {
+    await sharePointClient.deleteListItem(LIST_SERVICIOS, id);
   },
 };
