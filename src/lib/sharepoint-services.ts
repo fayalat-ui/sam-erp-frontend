@@ -2,8 +2,8 @@
 import { sharePointClient } from "@/lib/sharepoint";
 
 /**
- * Servicios centralizados de SharePoint
- * Un servicio por entidad
+ * Servicios centralizados SharePoint
+ * Un service por lista, usado por las páginas
  */
 
 // ===============================
@@ -15,177 +15,89 @@ export interface SharePointItem {
 }
 
 // ===============================
+// HELPERS
+// ===============================
+async function getAll(list: string) {
+  return await sharePointClient.getListItems(list, "*", undefined, "Created desc");
+}
+
+async function getById(list: string, id: string | number) {
+  const items = await sharePointClient.getListItems(
+    list,
+    "*",
+    `id eq ${id}`,
+    undefined,
+    1
+  );
+  if (!items || items.length === 0) {
+    throw new Error("Registro no encontrado");
+  }
+  return items[0];
+}
+
+async function create(list: string, fields: Record<string, any>) {
+  return await sharePointClient.createListItem(list, fields);
+}
+
+async function update(list: string, id: string, fields: Record<string, any>) {
+  await sharePointClient.updateListItem(list, id, fields);
+}
+
+async function remove(list: string, id: string) {
+  await sharePointClient.deleteListItem(list, id);
+}
+
+// ===============================
 // CLIENTES
 // ===============================
-const LIST_CLIENTES = "TBL_CLIENTES";
-
 export const clientesService = {
-  async getAll(): Promise<SharePointItem[]> {
-    return await sharePointClient.getListItems(
-      LIST_CLIENTES,
-      "*",
-      undefined,
-      "Created desc"
-    );
-  },
-
-  async getById(id: string | number): Promise<SharePointItem> {
-    const items = await sharePointClient.getListItems(
-      LIST_CLIENTES,
-      "*",
-      `id eq ${id}`,
-      undefined,
-      1
-    );
-
-    if (!items || items.length === 0) {
-      throw new Error("Cliente no encontrado");
-    }
-
-    return items[0];
-  },
-
-  async create(fields: Record<string, any>): Promise<SharePointItem> {
-    return await sharePointClient.createListItem(LIST_CLIENTES, fields);
-  },
-
-  async update(id: string, fields: Record<string, any>): Promise<void> {
-    await sharePointClient.updateListItem(LIST_CLIENTES, id, fields);
-  },
-
-  async remove(id: string): Promise<void> {
-    await sharePointClient.deleteListItem(LIST_CLIENTES, id);
-  },
+  getAll: () => getAll("TBL_CLIENTES"),
+  getById: (id: string | number) => getById("TBL_CLIENTES", id),
+  create: (f: any) => create("TBL_CLIENTES", f),
+  update: (id: string, f: any) => update("TBL_CLIENTES", id, f),
+  remove: (id: string) => remove("TBL_CLIENTES", id),
 };
 
 // ===============================
 // MANDANTES
 // ===============================
-const LIST_MANDANTES = "TBL_MANDANTES";
-
 export const mandantesService = {
-  async getAll(): Promise<SharePointItem[]> {
-    return await sharePointClient.getListItems(
-      LIST_MANDANTES,
-      "*",
-      undefined,
-      "Created desc"
-    );
-  },
-
-  async getById(id: string | number): Promise<SharePointItem> {
-    const items = await sharePointClient.getListItems(
-      LIST_MANDANTES,
-      "*",
-      `id eq ${id}`,
-      undefined,
-      1
-    );
-
-    if (!items || items.length === 0) {
-      throw new Error("Mandante no encontrado");
-    }
-
-    return items[0];
-  },
-
-  async create(fields: Record<string, any>): Promise<SharePointItem> {
-    return await sharePointClient.createListItem(LIST_MANDANTES, fields);
-  },
-
-  async update(id: string, fields: Record<string, any>): Promise<void> {
-    await sharePointClient.updateListItem(LIST_MANDANTES, id, fields);
-  },
-
-  async remove(id: string): Promise<void> {
-    await sharePointClient.deleteListItem(LIST_MANDANTES, id);
-  },
+  getAll: () => getAll("TBL_MANDANTES"),
+  getById: (id: string | number) => getById("TBL_MANDANTES", id),
+  create: (f: any) => create("TBL_MANDANTES", f),
+  update: (id: string, f: any) => update("TBL_MANDANTES", id, f),
+  remove: (id: string) => remove("TBL_MANDANTES", id),
 };
 
 // ===============================
 // SERVICIOS
 // ===============================
-const LIST_SERVICIOS = "TBL_SERVICIOS";
-
 export const serviciosService = {
-  async getAll(): Promise<SharePointItem[]> {
-    return await sharePointClient.getListItems(
-      LIST_SERVICIOS,
-      "*",
-      undefined,
-      "Created desc"
-    );
-  },
-
-  async getById(id: string | number): Promise<SharePointItem> {
-    const items = await sharePointClient.getListItems(
-      LIST_SERVICIOS,
-      "*",
-      `id eq ${id}`,
-      undefined,
-      1
-    );
-
-    if (!items || items.length === 0) {
-      throw new Error("Servicio no encontrado");
-    }
-
-    return items[0];
-  },
-
-  async create(fields: Record<string, any>): Promise<SharePointItem> {
-    return await sharePointClient.createListItem(LIST_SERVICIOS, fields);
-  },
-
-  async update(id: string, fields: Record<string, any>): Promise<void> {
-    await sharePointClient.updateListItem(LIST_SERVICIOS, id, fields);
-  },
-
-  async remove(id: string): Promise<void> {
-    await sharePointClient.deleteListItem(LIST_SERVICIOS, id);
-  },
+  getAll: () => getAll("TBL_SERVICIOS"),
+  getById: (id: string | number) => getById("TBL_SERVICIOS", id),
+  create: (f: any) => create("TBL_SERVICIOS", f),
+  update: (id: string, f: any) => update("TBL_SERVICIOS", id, f),
+  remove: (id: string) => remove("TBL_SERVICIOS", id),
 };
 
 // ===============================
-// VACACIONES ✅ (NUEVO)
+// VACACIONES
 // ===============================
-const LIST_VACACIONES = "TBL_VACACIONES";
-
 export const vacacionesService = {
-  async getAll(): Promise<SharePointItem[]> {
-    return await sharePointClient.getListItems(
-      LIST_VACACIONES,
-      "*",
-      undefined,
-      "Created desc"
-    );
-  },
+  getAll: () => getAll("TBL_VACACIONES"),
+  getById: (id: string | number) => getById("TBL_VACACIONES", id),
+  create: (f: any) => create("TBL_VACACIONES", f),
+  update: (id: string, f: any) => update("TBL_VACACIONES", id, f),
+  remove: (id: string) => remove("TBL_VACACIONES", id),
+};
 
-  async getById(id: string | number): Promise<SharePointItem> {
-    const items = await sharePointClient.getListItems(
-      LIST_VACACIONES,
-      "*",
-      `id eq ${id}`,
-      undefined,
-      1
-    );
-
-    if (!items || items.length === 0) {
-      throw new Error("Vacación no encontrada");
-    }
-
-    return items[0];
-  },
-
-  async create(fields: Record<string, any>): Promise<SharePointItem> {
-    return await sharePointClient.createListItem(LIST_VACACIONES, fields);
-  },
-
-  async update(id: string, fields: Record<string, any>): Promise<void> {
-    await sharePointClient.updateListItem(LIST_VACACIONES, id, fields);
-  },
-
-  async remove(id: string): Promise<void> {
-    await sharePointClient.deleteListItem(LIST_VACACIONES, id);
-  },
+// ===============================
+// DIRECTIVAS ✅ (EL QUE FALTABA)
+// ===============================
+export const directivasService = {
+  getAll: () => getAll("TBL_DIRECTIVAS"),
+  getById: (id: string | number) => getById("TBL_DIRECTIVAS", id),
+  create: (f: any) => create("TBL_DIRECTIVAS", f),
+  update: (id: string, f: any) => update("TBL_DIRECTIVAS", id, f),
+  remove: (id: string) => remove("TBL_DIRECTIVAS", id),
 };
