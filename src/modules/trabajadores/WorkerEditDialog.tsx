@@ -1,65 +1,159 @@
-import { useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { getTrabajadorById } from "@/services/sharepoint/trabajadores";
-import { WorkerEditDialog } from "@/modules/trabajadores/WorkerEditDialog";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/sonner";
 
-export default function WorkerDetail() {
-  const { id } = useParams();
-  const [worker, setWorker] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [openEdit, setOpenEdit] = useState(false);
+import { updateTrabajador } from "@/services/sharepoint/trabajadores";
 
-  const refetch = async () => {
-    if (!id) return;
-    setLoading(true);
+type WorkerLike = Record<string, any>;
+
+type Props = {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  worker: WorkerLike;
+  trabajadorId: string;
+  onSaved: () => void | Promise<void>;
+};
+
+export function WorkerEditDialog({ open, onOpenChange, worker, trabajadorId, onSaved }: Props) {
+  const [saving, setSaving] = useState(false);
+
+  const initial = useMemo(() => {
+    return {
+      Nombres: worker?.Nombres ?? "",
+      Apellidos: worker?.Apellidos ?? "",
+      N_documento: worker?.N_documento ?? "",
+      Email_Empresa: worker?.Email_Empresa ?? "",
+      Email_PERSONAL: worker?.Email_PERSONAL ?? "",
+      Estado: worker?.Estado ?? "",
+      NACIMIENTO: (worker?.NACIMIENTO ?? "").slice?.(0, 10) ?? "",
+      Celular: worker?.Celular ?? "",
+      DIRECCION_ANTIGUA: worker?.DIRECCION_ANTIGUA ?? "",
+      Ciudad: worker?.Ciudad ?? "",
+    };
+  }, [worker]);
+
+  const [form, setForm] = useState(initial);
+
+  useEffect(() => {
+    setForm(initial);
+  }, [initial]);
+
+  const setField = (k: keyof typeof form, v: string) =>
+    setForm((prev) => ({ ...prev, [k]: v }));
+
+  const handleSave = async () => {
+    const id = trabajadorId || String(worker?.id ?? "");
+    if (!id) {
+      toast.error("No pude detectar el ID del trabajador.");
+      return;
+    }
+
     try {
-      const data = await getTrabajadorById(id);
-      setWorker(data);
-    } catch (e) {
+      setSaving(true);
+
+      const payload: Record<string, any> = {
+        Nombres: String(form.Nombres ?? "").trim(),
+        Apellidos: String(form.Apellidos ?? "").trim(),
+        N_documento: String(form.N_documento ?? "").trim(),
+        Email_Empresa: String(form.Email_Empresa ?? "").trim(),
+        Email_PERSONAL: String(form.Email_PERSONAL ?? "").trim(),
+        Estado: String(form.Estado ?? "").trim(),
+        Celular: String(form.Celular ?? "").trim(),
+        DIRECCION_ANTIGUA: String(form.DIRECCION_ANTIGUA ?? "").trim(),
+        Ciudad: String(form.Ciudad ?? "").trim(),
+      };
+
+      if (form.NACIMIENTO?.trim()) {
+        payload.NACIMIENTO = `${form.NACIMIENTO}T00:00:00Z`;
+      }
+
+      await updateTrabajador(id, payload);
+
+      toast.success("Trabajador actualizado");
+      onOpenChange(false);
+      await onSaved();
+    } catch (e: any) {
       console.error(e);
-      setWorker(null);
+      toast.error(e?.message || "No se pudo guardar");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  useEffect(() => {
-    refetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  if (loading && !worker) return <p>Cargando…</p>;
-  if (!worker) return <p>No se encontró el trabajador.</p>;
-
   return (
-    <>
-      <div className="flex items-start justify-between gap-3 mb-4">
-        <h2 className="text-2xl font-semibold">
-          {worker.NOMNRE_COMPLETO || `${worker.Nombres ?? ""} ${worker.Apellidos ?? ""}`.trim() || "Trabajador"}
-        </h2>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Editar trabajador</DialogTitle>
+        </DialogHeader>
 
-        <Button onClick={() => setOpenEdit(true)}>Editar</Button>
-      </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-sm">Nombres</label>
+            <Input value={form.Nombres} onChange={(e) => setField("Nombres", e.target.value)} />
+          </div>
 
-      <div className="bg-white p-4 rounded border space-y-2">
-        <p><b>RUT:</b> {worker.N_documento || "—"}</p>
-        <p><b>Email empresa:</b> {worker.Email_Empresa || "—"}</p>
-        <p><b>Email personal:</b> {worker.Email_PERSONAL || "—"}</p>
-        <p><b>Estado:</b> {worker.Estado || "—"}</p>
-        <p><b>Fecha nacimiento:</b> {worker.NACIMIENTO?.slice?.(0, 10) || "—"}</p>
-        <p><b>Celular:</b> {worker.Celular || "—"}</p>
-        <p><b>Dirección:</b> {worker.DIRECCION_ANTIGUA || "—"}</p>
-        <p><b>Ciudad:</b> {worker.Ciudad || "—"}</p>
-      </div>
+          <div>
+            <label className="text-sm">Apellidos</label>
+            <Input value={form.Apellidos} onChange={(e) => setField("Apellidos", e.target.value)} />
+          </div>
 
-      <WorkerEditDialog
-        open={openEdit}
-        onOpenChange={setOpenEdit}
-        worker={worker}
-        trabajadorId={id || ""}
-        onSaved={refetch}
-      />
-    </>
+          <div>
+            <label className="text-sm">RUT</label>
+            <Input value={form.N_documento} onChange={(e) => setField("N_documento", e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm">Estado</label>
+            <Input value={form.Estado} onChange={(e) => setField("Estado", e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm">Email empresa</label>
+            <Input value={form.Email_Empresa} onChange={(e) => setField("Email_Empresa", e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm">Email personal</label>
+            <Input value={form.Email_PERSONAL} onChange={(e) => setField("Email_PERSONAL", e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm">Celular</label>
+            <Input value={form.Celular} onChange={(e) => setField("Celular", e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm">Ciudad</label>
+            <Input value={form.Ciudad} onChange={(e) => setField("Ciudad", e.target.value)} />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="text-sm">Dirección</label>
+            <Input value={form.DIRECCION_ANTIGUA} onChange={(e) => setField("DIRECCION_ANTIGUA", e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm">Nacimiento (YYYY-MM-DD)</label>
+            <Input
+              value={form.NACIMIENTO}
+              onChange={(e) => setField("NACIMIENTO", e.target.value)}
+              placeholder="1990-12-31"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Guardando..." : "Guardar"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
