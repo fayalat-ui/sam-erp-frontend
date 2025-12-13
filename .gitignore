@@ -1,0 +1,21 @@
+# Dependencias
+node_modules/
+
+# Build
+dist/
+
+# Env files (CRÍTICO)
+.env
+.env.*
+!.env.example
+
+# Netlify local / metadata
+.netlify/
+.netlify_site*
+.netlify_sites.json
+
+# Logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
