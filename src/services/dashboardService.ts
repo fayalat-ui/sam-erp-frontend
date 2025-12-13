@@ -10,7 +10,7 @@ export type SharePointQueryOptions = {
 };
 
 export type SharePointClient = {
-  // Firma mínima necesaria (como tu getAll actual)
+  // Firma mínima necesaria
   getAll: <T = any>(listName: string, options?: SharePointQueryOptions) => Promise<T[]>;
 };
 
@@ -42,7 +42,6 @@ export type DashboardCounts = {
 };
 
 function escapeODataString(v: string) {
-  // Para strings con comillas simples en OData
   return v.replace(/'/g, "''");
 }
 
@@ -114,14 +113,12 @@ async function countByDateBuckets(
 }
 
 export async function fetchDashboardCounts(sp: SharePointClient): Promise<DashboardCounts> {
-  // Listas / columnas (tal como pediste)
   const LIST_TRABAJADORES = "TBL_TRABAJADORES";
   const LIST_SOL_CONTRATOS = "SOLICITUD_CONTRATOS";
   const LIST_SERVICIOS = "TBL_SERVICIOS";
   const LIST_DIRECTIVAS = "TBL_DIRECTIVAS";
   const LIST_OS10 = "TBL_REGISTRO_CURSO_OS10";
 
-  // Workers: Estado
   const [
     trabajadoresActivos,
     trabajadoresDesvinculados,
